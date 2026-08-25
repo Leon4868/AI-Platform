@@ -16,7 +16,7 @@ export function Inspector({ data }: { data?: AgentNodeData }) {
       <Glass className={cn("rounded-xl p-3.25 shadow-none", toneVariableClass[data.tone])}>
         <div className="flex items-center justify-between">
           <span className="text-[9px] font-extrabold tracking-[.1em] text-[var(--tone-color)]">{data.category}</span>
-          <IconButton label="更多操作" icon={<MoreHorizontal size={16} />} />
+          <IconButton tooltipPlacement="left" label="更多操作" icon={<MoreHorizontal size={16} />} />
         </div>
         <h3 className="mt-1.5 mb-1 text-base font-semibold">{data.label}</h3>
         <p className="m-0 text-[11px] text-muted">{data.subtitle}</p>
@@ -31,7 +31,7 @@ export function Inspector({ data }: { data?: AgentNodeData }) {
         <div className="flex h-9 items-center gap-1.75 rounded-[9px] border border-line bg-canvas/30 pl-2.25 text-accent-violet">
           <Code2 size={14} />
           <code className="min-w-0 flex-1 overflow-hidden text-[9px] text-ellipsis text-[#c8d8e5]">{"{{ steps.prompt.output }}"}</code>
-          <IconButton className="size-7.5" label="复制映射" icon={<Copy size={13} />} />
+          <IconButton className="size-7.5" tooltipPlacement="left" label="复制映射" icon={<Copy size={13} />} />
         </div>
       </PanelSection>
       <PanelSection title="高级设置">

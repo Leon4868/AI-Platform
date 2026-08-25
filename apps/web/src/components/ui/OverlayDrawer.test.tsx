@@ -14,6 +14,8 @@ describe("OverlayDrawer", () => {
     expect(drawer).toHaveAttribute("aria-hidden", "true");
     expect(drawer).toHaveClass("pointer-events-none");
     expect(drawer).not.toHaveClass("pointer-events-auto");
+    expect(drawer).toHaveClass("-translate-x-[calc(100%+22px)]");
+    expect(drawer).not.toHaveClass("translate-x-0");
   });
 
   it("captures pointer input while open instead of passing it to the canvas", () => {
@@ -28,6 +30,8 @@ describe("OverlayDrawer", () => {
     const drawer = container.querySelector("aside");
     expect(drawer).toHaveClass("pointer-events-auto");
     expect(drawer).not.toHaveClass("pointer-events-none");
+    expect(drawer).toHaveClass("translate-x-0");
+    expect(drawer).not.toHaveClass("-translate-x-[calc(100%+22px)]");
 
     fireEvent.pointerDown(screen.getByRole("button", { name: "节点内容" }));
     expect(onWorkspacePointerDown).not.toHaveBeenCalled();
@@ -40,6 +44,9 @@ describe("OverlayDrawer", () => {
         属性内容
       </OverlayDrawer>,
     );
+    const drawer = screen.getByRole("complementary");
+    expect(drawer).toHaveClass("translate-x-0");
+    expect(drawer).not.toHaveClass("translate-x-[calc(100%+22px)]");
     fireEvent.click(screen.getByRole("button", { name: "关闭节点属性" }));
     expect(onClose).toHaveBeenCalledOnce();
   });
