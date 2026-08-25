@@ -1,0 +1,11 @@
+{
+  "id": "kdoc_001",
+  "knowledgeBaseId": "kb_product",
+  "assetId": "asset_source_001",
+  "filename": "project-progress.pdf",
+  "mimeType": "application/pdf",
+  "status": "indexed",
+  "version": 2,
+  "sourceUri": "s3://example-private-bucket/knowledge/kdoc_001/v2.pdf",
+  "indexedAt": "2026-08-24T16:30:00Z"
+}

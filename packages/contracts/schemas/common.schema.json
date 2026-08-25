@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-platform.example/schemas/common.schema.json",
+  "title": "AI Platform Common Contracts",
+  "$defs": {
+    "entityId": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "dateTime": { "type": "string", "format": "date-time" },
+    "securityLevel": {
+      "type": "string",
+      "enum": ["internal", "department_sensitive", "confidential"]
+    },
+    "dataScope": {
+      "type": "string",
+      "enum": ["personal", "project", "department", "enterprise"]
+    },
+    "apiError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message", "retryable"],
+      "properties": {
+        "code": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]+$" },
+        "message": { "type": "string" },
+        "retryable": { "type": "boolean" },
+        "details": { "type": "object", "additionalProperties": true }
+      }
+    },
+    "problemDetails": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "title", "status", "detail", "instance", "request_id"],
+      "properties": {
+        "type": { "type": "string", "pattern": "^urn:enterprise-ai:error:" },
+        "title": { "type": "string", "minLength": 1 },
+        "status": { "type": "integer", "minimum": 400, "maximum": 599 },
+        "detail": { "type": "string", "minLength": 1 },
+        "instance": { "type": "string", "minLength": 1 },
+        "request_id": { "type": ["string", "null"], "maxLength": 100 },
+        "errors": { "type": "array", "items": { "type": "object", "additionalProperties": true } }
+      }
+    },
+    "permissionSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "subjectId",
+        "departmentIds",
+        "projectIds",
+        "roles",
+        "allowedScopes",
+        "securityClearance",
+        "capturedAt",
+        "policyVersion"
+      ],
+      "properties": {
+        "subjectId": { "$ref": "#/$defs/entityId" },
+        "departmentIds": { "type": "array", "items": { "$ref": "#/$defs/entityId" }, "uniqueItems": true },
+        "projectIds": { "type": "array", "items": { "$ref": "#/$defs/entityId" }, "uniqueItems": true },
+        "roles": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "allowedScopes": { "type": "array", "items": { "$ref": "#/$defs/dataScope" }, "uniqueItems": true },
+        "securityClearance": { "$ref": "#/$defs/securityLevel" },
+        "capturedAt": { "$ref": "#/$defs/dateTime" },
+        "policyVersion": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

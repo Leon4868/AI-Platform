@@ -1,0 +1,7 @@
+{
+  "workflowDefinitionVersion": 1,
+  "input": {
+    "title": "产品周报",
+    "instructions": "根据已授权的企业知识生成本周进展"
+  }
+}

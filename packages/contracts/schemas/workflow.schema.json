@@ -1,0 +1,210 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-platform.example/schemas/workflow.schema.json",
+  "title": "Workflow Contracts",
+  "$defs": {
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "name", "version", "position", "config"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "type": {
+          "type": "string",
+          "enum": ["input", "knowledge_search", "prompt", "llm", "document_compose", "human_review", "asset_publish", "output"]
+        },
+        "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "version": { "type": "integer", "minimum": 1 },
+        "position": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["x", "y"],
+          "properties": { "x": { "type": "number" }, "y": { "type": "number" } }
+        },
+        "config": { "type": "object", "additionalProperties": true },
+        "timeoutSeconds": { "type": "integer", "minimum": 1, "maximum": 3600 },
+        "retry": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["maxAttempts", "backoffSeconds"],
+          "properties": {
+            "maxAttempts": { "type": "integer", "minimum": 1, "maximum": 5 },
+            "backoffSeconds": { "type": "integer", "minimum": 0, "maximum": 300 }
+          }
+        }
+      }
+    },
+    "edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "sourceNodeId", "targetNodeId", "condition"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "sourceNodeId": { "type": "string", "minLength": 1 },
+        "targetNodeId": { "type": "string", "minLength": 1 },
+        "sourceHandle": { "type": "string" },
+        "targetHandle": { "type": "string" },
+        "condition": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind"],
+          "properties": {
+            "kind": { "type": "string", "enum": ["always", "on_success", "on_failure", "json_logic"] },
+            "expression": true
+          }
+        }
+      }
+    },
+    "definition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id", "name", "definitionVersion", "status", "entryNodeId", "nodes", "edges",
+        "ownerDepartmentId", "createdBy", "createdAt", "updatedAt"
+      ],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "description": { "type": "string", "maxLength": 1000 },
+        "definitionVersion": { "type": "integer", "minimum": 1 },
+        "status": { "type": "string", "enum": ["draft", "published", "archived"] },
+        "entryNodeId": { "type": "string", "minLength": 1 },
+        "nodes": { "type": "array", "items": { "$ref": "#/$defs/node" }, "minItems": 2 },
+        "edges": { "type": "array", "items": { "$ref": "#/$defs/edge" }, "minItems": 1 },
+        "ownerDepartmentId": { "type": "string", "minLength": 1 },
+        "createdBy": { "type": "string", "minLength": 1 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "nodeRun": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["nodeId", "attempt", "status"],
+      "properties": {
+        "nodeId": { "type": "string", "minLength": 1 },
+        "attempt": { "type": "integer", "minimum": 1 },
+        "status": { "type": "string", "enum": ["pending", "running", "waiting_human", "succeeded", "failed", "cancelled", "skipped"] },
+        "startedAt": { "type": "string", "format": "date-time" },
+        "finishedAt": { "type": "string", "format": "date-time" },
+        "input": true,
+        "output": true,
+        "error": { "$ref": "common.schema.json#/$defs/apiError" }
+      }
+    },
+    "startRunRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["input"],
+      "properties": {
+        "workflowDefinitionVersion": { "type": "integer", "minimum": 1 },
+        "input": true
+      }
+    },
+    "cancelRunRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "reason": { "type": "string", "minLength": 1, "maxLength": 500 }
+      }
+    },
+    "run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id", "workflowDefinitionId", "workflowDefinitionVersion", "status", "initiatedBy",
+        "permissionSnapshot", "input", "nodeRuns", "traceId", "createdAt"
+      ],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "workflowDefinitionId": { "type": "string", "minLength": 1 },
+        "workflowDefinitionVersion": { "type": "integer", "minimum": 1 },
+        "status": { "type": "string", "enum": ["queued", "running", "waiting_human", "succeeded", "failed", "cancelled"] },
+        "initiatedBy": { "type": "string", "minLength": 1 },
+        "permissionSnapshot": { "$ref": "common.schema.json#/$defs/permissionSnapshot" },
+        "input": true,
+        "output": true,
+        "nodeRuns": { "type": "array", "items": { "$ref": "#/$defs/nodeRun" } },
+        "traceId": { "type": "string", "minLength": 1 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "startedAt": { "type": "string", "format": "date-time" },
+        "finishedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "runEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sequence", "runId", "type", "occurredAt", "payload"],
+      "properties": {
+        "sequence": { "type": "integer", "minimum": 1 },
+        "runId": { "type": "string", "minLength": 1 },
+        "type": {
+          "type": "string",
+          "enum": ["run.queued", "run.started", "node.started", "node.completed", "node.failed", "node.cancelled", "run.waiting_human", "run.completed", "run.failed", "run.cancelled"]
+        },
+        "occurredAt": { "type": "string", "format": "date-time" },
+        "nodeId": { "type": "string" },
+        "payload": true
+      }
+    },
+    "runEventList": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/runEvent" },
+      "minItems": 1
+    },
+    "modelUsage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["logicalModelCode", "provider", "resolvedModel", "inputTokens", "outputTokens", "costUsd", "priceVersion"],
+      "properties": {
+        "logicalModelCode": { "type": "string" },
+        "provider": { "type": "string", "enum": ["openai", "anthropic", "google", "self_hosted"] },
+        "resolvedModel": { "type": "string" },
+        "inputTokens": { "type": "integer", "minimum": 0 },
+        "outputTokens": { "type": "integer", "minimum": 0 },
+        "costUsd": { "type": "number", "minimum": 0 },
+        "priceVersion": { "type": "string" }
+      }
+    },
+    "trace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["traceId", "requestId", "startedAt", "durationMs", "spans"],
+      "properties": {
+        "traceId": { "type": "string", "minLength": 1 },
+        "requestId": { "type": "string", "minLength": 1 },
+        "runId": { "type": "string" },
+        "startedAt": { "type": "string", "format": "date-time" },
+        "durationMs": { "type": "number", "minimum": 0 },
+        "spans": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["spanId", "name", "status", "startedAt", "durationMs", "attributes"],
+            "properties": {
+              "spanId": { "type": "string" },
+              "parentSpanId": { "type": "string" },
+              "name": { "type": "string" },
+              "status": { "type": "string", "enum": ["ok", "error"] },
+              "startedAt": { "type": "string", "format": "date-time" },
+              "durationMs": { "type": "number", "minimum": 0 },
+              "attributes": { "type": "object", "additionalProperties": true },
+              "modelUsage": { "$ref": "#/$defs/modelUsage" },
+              "error": { "$ref": "common.schema.json#/$defs/apiError" }
+            }
+          }
+        }
+      }
+    }
+  },
+  "oneOf": [
+    { "$ref": "#/$defs/definition" },
+    { "$ref": "#/$defs/startRunRequest" },
+    { "$ref": "#/$defs/cancelRunRequest" },
+    { "$ref": "#/$defs/run" },
+    { "$ref": "#/$defs/runEvent" },
+    { "$ref": "#/$defs/runEventList" },
+    { "$ref": "#/$defs/trace" }
+  ]
+}

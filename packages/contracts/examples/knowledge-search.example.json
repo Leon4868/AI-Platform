@@ -1,0 +1,9 @@
+{
+  "query": "本周产品里程碑和风险是什么？",
+  "topK": 8,
+  "filters": {
+    "documentStatus": "indexed",
+    "dataScopes": ["department"],
+    "securityLevels": ["internal"]
+  }
+}

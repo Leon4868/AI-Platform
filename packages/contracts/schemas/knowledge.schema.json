@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-platform.example/schemas/knowledge.schema.json",
+  "title": "Knowledge Search Contracts",
+  "$defs": {
+    "knowledgeBase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "ownerDepartmentId", "securityLevel", "embeddingModelCode", "createdAt"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string", "minLength": 1 },
+        "description": { "type": "string" },
+        "ownerDepartmentId": { "type": "string" },
+        "securityLevel": { "$ref": "common.schema.json#/$defs/securityLevel" },
+        "embeddingModelCode": { "type": "string", "minLength": 1 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "document": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "knowledgeBaseId", "assetId", "filename", "mimeType", "status", "version"],
+      "properties": {
+        "id": { "type": "string" },
+        "knowledgeBaseId": { "type": "string" },
+        "assetId": { "type": "string" },
+        "filename": { "type": "string" },
+        "mimeType": { "type": "string" },
+        "status": { "type": "string", "enum": ["uploaded", "parsing", "indexed", "failed", "archived"] },
+        "version": { "type": "integer", "minimum": 1 },
+        "sourceUri": { "type": "string" },
+        "indexedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "chunk": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "knowledgeDocumentId", "ordinal", "text", "headingPath", "contentHash", "aclTags"],
+      "properties": {
+        "id": { "type": "string" },
+        "knowledgeDocumentId": { "type": "string" },
+        "ordinal": { "type": "integer", "minimum": 0 },
+        "text": { "type": "string", "minLength": 1 },
+        "headingPath": { "type": "array", "items": { "type": "string" } },
+        "page": { "type": "integer", "minimum": 1 },
+        "contentHash": { "type": "string" },
+        "aclTags": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+      }
+    },
+    "citation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["knowledgeDocumentId", "chunkId", "assetId", "quote", "score"],
+      "properties": {
+        "knowledgeDocumentId": { "type": "string" },
+        "chunkId": { "type": "string" },
+        "assetId": { "type": "string" },
+        "quote": { "type": "string" },
+        "page": { "type": "integer", "minimum": 1 },
+        "score": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "searchRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["query", "topK"],
+      "properties": {
+        "query": { "type": "string", "minLength": 1, "maxLength": 4000 },
+        "topK": { "type": "integer", "minimum": 1, "maximum": 50 },
+        "filters": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "documentStatus": { "type": "string", "enum": ["uploaded", "parsing", "indexed", "failed", "archived"] },
+            "documentIds": { "type": "array", "maxItems": 200, "items": { "type": "string" } },
+            "assetIds": { "type": "array", "maxItems": 200, "items": { "type": "string" } },
+            "dataScopes": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/dataScope" } },
+            "securityLevels": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/securityLevel" } },
+            "titleContains": { "type": "string", "minLength": 1, "maxLength": 240 }
+          }
+        }
+      }
+    },
+    "searchResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["citations", "traceId"],
+      "properties": {
+        "citations": { "type": "array", "items": { "$ref": "#/$defs/citation" } },
+        "traceId": { "type": "string" }
+      }
+    }
+  },
+  "oneOf": [
+    { "$ref": "#/$defs/knowledgeBase" },
+    { "$ref": "#/$defs/document" },
+    { "$ref": "#/$defs/chunk" },
+    { "$ref": "#/$defs/searchRequest" },
+    { "$ref": "#/$defs/searchResponse" }
+  ]
+}

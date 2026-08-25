@@ -1,0 +1,23 @@
+{
+  "id": "asset_doc_001",
+  "type": "document",
+  "name": "产品周报草稿",
+  "version": 1,
+  "status": "draft",
+  "mimeType": "text/markdown",
+  "storageUri": "s3://example-private-bucket/assets/asset_doc_001/v1.md",
+  "contentHash": "sha256:example-redacted-hash",
+  "creatorId": "user_demo_001",
+  "ownerDepartmentId": "dept_product",
+  "projectId": "project_alpha",
+  "dataScope": "department",
+  "securityLevel": "internal",
+  "lineage": [
+    { "assetId": "asset_source_001", "version": 2, "relation": "derived_from" },
+    { "assetId": "asset_workflow_001", "version": 1, "relation": "generated_by" }
+  ],
+  "workflowRunId": "run_001",
+  "traceId": "trace_001",
+  "createdAt": "2026-08-24T17:02:00Z",
+  "updatedAt": "2026-08-24T17:02:00Z"
+}

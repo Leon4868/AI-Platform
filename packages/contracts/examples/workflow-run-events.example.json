@@ -1,0 +1,76 @@
+[
+  {
+    "sequence": 1,
+    "runId": "run_success_demo",
+    "type": "run.started",
+    "occurredAt": "2026-08-24T17:00:01Z",
+    "payload": { "status": "running" }
+  },
+  {
+    "sequence": 2,
+    "runId": "run_success_demo",
+    "type": "node.started",
+    "occurredAt": "2026-08-24T17:00:02Z",
+    "nodeId": "node_search",
+    "payload": { "attempt": 1 }
+  },
+  {
+    "sequence": 3,
+    "runId": "run_success_demo",
+    "type": "node.completed",
+    "occurredAt": "2026-08-24T17:00:03Z",
+    "nodeId": "node_search",
+    "payload": { "status": "succeeded" }
+  },
+  {
+    "sequence": 4,
+    "runId": "run_success_demo",
+    "type": "run.completed",
+    "occurredAt": "2026-08-24T17:00:04Z",
+    "payload": { "status": "succeeded" }
+  },
+  {
+    "sequence": 1,
+    "runId": "run_failed_demo",
+    "type": "run.started",
+    "occurredAt": "2026-08-24T17:10:01Z",
+    "payload": { "status": "running" }
+  },
+  {
+    "sequence": 2,
+    "runId": "run_failed_demo",
+    "type": "node.failed",
+    "occurredAt": "2026-08-24T17:10:02Z",
+    "nodeId": "node_llm",
+    "payload": { "errorCode": "MODEL_TIMEOUT", "retryable": true }
+  },
+  {
+    "sequence": 3,
+    "runId": "run_failed_demo",
+    "type": "run.failed",
+    "occurredAt": "2026-08-24T17:10:03Z",
+    "payload": { "errorCode": "MODEL_TIMEOUT", "status": "failed" }
+  },
+  {
+    "sequence": 1,
+    "runId": "run_cancelled_demo",
+    "type": "run.started",
+    "occurredAt": "2026-08-24T17:20:01Z",
+    "payload": { "status": "running" }
+  },
+  {
+    "sequence": 2,
+    "runId": "run_cancelled_demo",
+    "type": "node.cancelled",
+    "occurredAt": "2026-08-24T17:20:02Z",
+    "nodeId": "node_compose",
+    "payload": { "status": "cancelled" }
+  },
+  {
+    "sequence": 3,
+    "runId": "run_cancelled_demo",
+    "type": "run.cancelled",
+    "occurredAt": "2026-08-24T17:20:03Z",
+    "payload": { "status": "cancelled" }
+  }
+]

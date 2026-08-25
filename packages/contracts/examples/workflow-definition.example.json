@@ -1,0 +1,25 @@
+{
+  "id": "wf_doc_001",
+  "name": "企业知识文档生成",
+  "description": "检索企业知识并生成带引用的文档草稿，发布前必须人工审核。",
+  "definitionVersion": 1,
+  "status": "published",
+  "entryNodeId": "node_input",
+  "nodes": [
+    { "id": "node_input", "type": "input", "name": "接收需求", "version": 1, "position": { "x": 80, "y": 160 }, "config": {} },
+    { "id": "node_search", "type": "knowledge_search", "name": "检索知识", "version": 1, "position": { "x": 360, "y": 160 }, "config": { "topK": 8 } },
+    { "id": "node_llm", "type": "llm", "name": "生成草稿", "version": 1, "position": { "x": 640, "y": 160 }, "config": { "logicalModelCode": "enterprise-doc-main" }, "timeoutSeconds": 180, "retry": { "maxAttempts": 2, "backoffSeconds": 5 } },
+    { "id": "node_review", "type": "human_review", "name": "人工审核", "version": 1, "position": { "x": 920, "y": 160 }, "config": { "reviewerRole": "asset_reviewer" } },
+    { "id": "node_output", "type": "output", "name": "保存草稿", "version": 1, "position": { "x": 1200, "y": 160 }, "config": {} }
+  ],
+  "edges": [
+    { "id": "e1", "sourceNodeId": "node_input", "targetNodeId": "node_search", "condition": { "kind": "always" } },
+    { "id": "e2", "sourceNodeId": "node_search", "targetNodeId": "node_llm", "condition": { "kind": "on_success" } },
+    { "id": "e3", "sourceNodeId": "node_llm", "targetNodeId": "node_review", "condition": { "kind": "on_success" } },
+    { "id": "e4", "sourceNodeId": "node_review", "targetNodeId": "node_output", "condition": { "kind": "on_success" } }
+  ],
+  "ownerDepartmentId": "dept_product",
+  "createdBy": "user_demo_admin",
+  "createdAt": "2026-08-24T16:00:00Z",
+  "updatedAt": "2026-08-24T16:00:00Z"
+}

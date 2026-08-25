@@ -1,0 +1,297 @@
+openapi: 3.1.0
+info:
+  title: Enterprise AI Platform API
+  version: 1.0.0
+  description: >-
+    Phase-one contract for enterprise knowledge search, document production,
+    visual workflow execution, assets and traces. Provider credentials never
+    appear in requests or responses.
+servers:
+  - url: /api
+security:
+  - bearerAuth: []
+paths:
+  /v1/knowledge-bases:
+    get:
+      operationId: listKnowledgeBases
+      responses:
+        "200":
+          description: Visible knowledge bases after server-side authorization
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: ./schemas/knowledge.schema.json#/$defs/knowledgeBase
+    post:
+      operationId: createKnowledgeBase
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [name, ownerDepartmentId, securityLevel, embeddingModelCode]
+              properties:
+                name: { type: string, minLength: 1, maxLength: 120 }
+                description: { type: string, maxLength: 1000 }
+                ownerDepartmentId: { type: string }
+                securityLevel:
+                  $ref: ./schemas/common.schema.json#/$defs/securityLevel
+                embeddingModelCode: { type: string }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: ./schemas/knowledge.schema.json#/$defs/knowledgeBase
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/knowledge-bases/{knowledgeBaseId}/documents:
+    post:
+      operationId: uploadKnowledgeDocument
+      parameters:
+        - $ref: "#/components/parameters/KnowledgeBaseId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+                dataScope:
+                  $ref: ./schemas/common.schema.json#/$defs/dataScope
+                securityLevel:
+                  $ref: ./schemas/common.schema.json#/$defs/securityLevel
+                projectId: { type: string, minLength: 1, maxLength: 128 }
+      responses:
+        "202":
+          description: Accepted for parsing and indexing
+          content:
+            application/json:
+              schema:
+                $ref: ./schemas/knowledge.schema.json#/$defs/document
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/knowledge-bases/{knowledgeBaseId}/search:
+    post:
+      operationId: searchKnowledge
+      parameters:
+        - $ref: "#/components/parameters/KnowledgeBaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas/knowledge.schema.json#/$defs/searchRequest
+      responses:
+        "200":
+          description: Permission-filtered citations
+          content:
+            application/json:
+              schema:
+                $ref: ./schemas/knowledge.schema.json#/$defs/searchResponse
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/workflow-definitions:
+    post:
+      operationId: saveWorkflowDefinition
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas/workflow.schema.json#/$defs/definition
+      responses:
+        "201":
+          description: Saved immutable definition version
+          content:
+            application/json:
+              schema:
+                $ref: ./schemas/workflow.schema.json#/$defs/definition
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/workflows/{workflow_id}/runs:
+    post:
+      operationId: startWorkflowRun
+      parameters:
+        - $ref: "#/components/parameters/WorkflowId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas/workflow.schema.json#/$defs/startRunRequest
+      responses:
+        "202":
+          description: Run queued
+          content:
+            application/json:
+              schema:
+                $ref: ./schemas/workflow.schema.json#/$defs/run
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/workflow-runs/{run_id}:
+    get:
+      operationId: getWorkflowRun
+      parameters:
+        - $ref: "#/components/parameters/RunId"
+      responses:
+        "200":
+          description: Current run snapshot
+          content:
+            application/json:
+              schema:
+                $ref: ./schemas/workflow.schema.json#/$defs/run
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/workflow-runs/{run_id}/cancel:
+    post:
+      operationId: cancelWorkflowRun
+      parameters:
+        - $ref: "#/components/parameters/RunId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas/workflow.schema.json#/$defs/cancelRunRequest
+      responses:
+        "200":
+          description: >-
+            Cancellation accepted or the run was already cancelled. Terminal
+            successful or failed runs return a stable conflict error.
+          content:
+            application/json:
+              schema:
+                $ref: ./schemas/workflow.schema.json#/$defs/run
+        "409":
+          description: Run is already in a non-cancellable terminal state
+          content:
+            application/problem+json:
+              schema:
+                $ref: ./schemas/common.schema.json#/$defs/problemDetails
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/workflow-runs/{run_id}/events:
+    get:
+      operationId: streamWorkflowRunEvents
+      parameters:
+        - $ref: "#/components/parameters/RunId"
+        - name: Last-Event-ID
+          in: header
+          required: false
+          schema: { type: integer, minimum: 0 }
+      responses:
+        "200":
+          description: >-
+            SSE stream. Each frame uses `id: sequence`, `event: type`, and
+            `data: WorkflowRunEvent JSON`. Sequence is strictly
+            increasing per run. Clients resume with Last-Event-ID and
+            de-duplicate by runId plus sequence.
+          content:
+            text/event-stream:
+              schema: { type: string }
+              x-sse-data-schema:
+                $ref: ./schemas/workflow.schema.json#/$defs/runEvent
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/document-tasks:
+    post:
+      operationId: createDocumentTask
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas/document.schema.json#/$defs/generationRequest
+      responses:
+        "202":
+          description: Document generation queued
+          content:
+            application/json:
+              schema:
+                $ref: ./schemas/document.schema.json#/$defs/generatedDocument
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/document-tasks/{taskId}:
+    get:
+      operationId: getDocumentTask
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Current document task snapshot
+          content:
+            application/json:
+              schema:
+                $ref: ./schemas/document.schema.json#/$defs/generatedDocument
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/assets/{assetId}:
+    get:
+      operationId: getAsset
+      parameters:
+        - name: assetId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Authorized asset metadata; binary download uses a short-lived URL
+          content:
+            application/json:
+              schema:
+                $ref: ./schemas/asset.schema.json
+        default:
+          $ref: "#/components/responses/Error"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque-session
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: { type: string, minLength: 8, maxLength: 128 }
+    KnowledgeBaseId:
+      name: knowledgeBaseId
+      in: path
+      required: true
+      schema: { type: string }
+    WorkflowId:
+      name: workflow_id
+      in: path
+      required: true
+      schema: { type: string, minLength: 1 }
+    RunId:
+      name: run_id
+      in: path
+      required: true
+      schema: { type: string, minLength: 1 }
+  responses:
+    Error:
+      description: Stable machine-readable error
+      content:
+        application/problem+json:
+          schema:
+            $ref: ./schemas/common.schema.json#/$defs/problemDetails

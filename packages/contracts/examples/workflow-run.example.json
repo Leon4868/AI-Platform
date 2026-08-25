@@ -1,0 +1,27 @@
+{
+  "id": "run_001",
+  "workflowDefinitionId": "wf_doc_001",
+  "workflowDefinitionVersion": 1,
+  "status": "waiting_human",
+  "initiatedBy": "user_demo_001",
+  "permissionSnapshot": {
+    "subjectId": "user_demo_001",
+    "departmentIds": ["dept_product"],
+    "projectIds": ["project_alpha"],
+    "roles": ["employee"],
+    "allowedScopes": ["personal", "project", "department"],
+    "securityClearance": "department_sensitive",
+    "capturedAt": "2026-08-24T17:00:00Z",
+    "policyVersion": "rbac-1"
+  },
+  "input": { "title": "产品周报", "instructions": "根据知识库生成本周进展" },
+  "nodeRuns": [
+    { "nodeId": "node_input", "attempt": 1, "status": "succeeded" },
+    { "nodeId": "node_search", "attempt": 1, "status": "succeeded" },
+    { "nodeId": "node_llm", "attempt": 1, "status": "succeeded" },
+    { "nodeId": "node_review", "attempt": 1, "status": "waiting_human" }
+  ],
+  "traceId": "trace_001",
+  "createdAt": "2026-08-24T17:00:00Z",
+  "startedAt": "2026-08-24T17:00:01Z"
+}

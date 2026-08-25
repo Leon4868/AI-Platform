@@ -1,0 +1,35 @@
+{
+  "traceId": "trace_001",
+  "requestId": "req_demo_001",
+  "runId": "run_001",
+  "startedAt": "2026-08-24T17:00:01Z",
+  "durationMs": 2150,
+  "spans": [
+    {
+      "spanId": "span_search_001",
+      "name": "knowledge.search",
+      "status": "ok",
+      "startedAt": "2026-08-24T17:00:01Z",
+      "durationMs": 150,
+      "attributes": { "hits": 8 }
+    },
+    {
+      "spanId": "span_llm_001",
+      "parentSpanId": "span_search_001",
+      "name": "model.generate_document",
+      "status": "ok",
+      "startedAt": "2026-08-24T17:00:01.150Z",
+      "durationMs": 2000,
+      "attributes": { "outputFormat": "markdown" },
+      "modelUsage": {
+        "logicalModelCode": "enterprise-doc-main",
+        "provider": "anthropic",
+        "resolvedModel": "configured-model-alias",
+        "inputTokens": 1200,
+        "outputTokens": 680,
+        "costUsd": 0.02,
+        "priceVersion": "price-2026-08"
+      }
+    }
+  ]
+}

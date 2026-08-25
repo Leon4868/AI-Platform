@@ -1,0 +1,13 @@
+{
+  "title": "产品周报",
+  "templateAssetId": "asset_template_weekly",
+  "workflowDefinitionId": "wf_doc_001",
+  "knowledgeBaseIds": ["kb_product"],
+  "logicalModelCode": "enterprise-doc-main",
+  "instructions": "总结本周进展、风险和下周计划；每个事实必须提供引用。",
+  "sources": [
+    { "kind": "asset", "id": "asset_source_001", "label": "项目进展记录" },
+    { "kind": "user_input", "label": "本周补充说明" }
+  ],
+  "outputFormat": "markdown"
+}

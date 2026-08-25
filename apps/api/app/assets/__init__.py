@@ -1,0 +1,1 @@
+"""Enterprise asset catalogue contracts."""

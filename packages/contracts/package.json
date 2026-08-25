@@ -1,0 +1,21 @@
+{
+  "name": "@ai-platform/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./openapi": "./openapi.yaml",
+    "./schemas/*": "./schemas/*"
+  },
+  "scripts": {
+    "validate": "node ./scripts/validate-contracts.mjs"
+  },
+  "files": [
+    "src",
+    "schemas",
+    "examples",
+    "scripts",
+    "openapi.yaml"
+  ]
+}

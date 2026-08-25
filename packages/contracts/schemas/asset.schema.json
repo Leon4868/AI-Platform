@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-platform.example/schemas/asset.schema.json",
+  "title": "Enterprise Asset",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id", "type", "name", "version", "status", "creatorId", "ownerDepartmentId",
+    "dataScope", "securityLevel", "lineage", "createdAt", "updatedAt"
+  ],
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "type": { "type": "string", "enum": ["document", "image", "video", "audio", "prompt", "agent", "workflow", "dataset", "report", "code", "other"] },
+    "name": { "type": "string", "minLength": 1, "maxLength": 240 },
+    "description": { "type": "string", "maxLength": 2000 },
+    "version": { "type": "integer", "minimum": 1 },
+    "status": { "type": "string", "enum": ["draft", "pending_review", "approved", "published", "archived"] },
+    "mimeType": { "type": "string" },
+    "storageUri": { "type": "string" },
+    "contentHash": { "type": "string" },
+    "creatorId": { "type": "string", "minLength": 1 },
+    "ownerDepartmentId": { "type": "string", "minLength": 1 },
+    "projectId": { "type": "string" },
+    "dataScope": { "$ref": "common.schema.json#/$defs/dataScope" },
+    "securityLevel": { "$ref": "common.schema.json#/$defs/securityLevel" },
+    "lineage": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["assetId", "version", "relation"],
+        "properties": {
+          "assetId": { "type": "string", "minLength": 1 },
+          "version": { "type": "integer", "minimum": 1 },
+          "relation": { "type": "string", "enum": ["source", "derived_from", "generated_by", "supersedes"] }
+        }
+      }
+    },
+    "workflowRunId": { "type": "string" },
+    "traceId": { "type": "string" },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "updatedAt": { "type": "string", "format": "date-time" }
+  }
+}
