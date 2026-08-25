@@ -29,7 +29,7 @@ function createConfiguredTransport() {
 }
 
 export default function App() {
-  const { state, dispatch, commandRef } = useWorkspaceState();
+  const { state, dispatch, commandRef, nodeSearchRef } = useWorkspaceState();
   const [section, setSection] = useState<AppSection>("agent");
   const [command, setCommand] = useState("");
   const [workflowDefinitionId, setWorkflowDefinitionId] = useState(import.meta.env.VITE_DEFAULT_WORKFLOW_ID ?? "");
@@ -82,7 +82,7 @@ export default function App() {
         eyebrow="BUILDING BLOCKS"
         onClose={() => dispatch({ type: "toggle-left" })}
       >
-        <NodeLibrary />
+        <NodeLibrary searchInputRef={nodeSearchRef} />
       </OverlayDrawer>
       <OverlayDrawer
         side="right"

@@ -10,7 +10,27 @@ describe("OverlayDrawer", () => {
         节点内容
       </OverlayDrawer>,
     );
-    expect(container.querySelector("aside")).toHaveAttribute("aria-hidden", "true");
+    const drawer = container.querySelector("aside");
+    expect(drawer).toHaveAttribute("aria-hidden", "true");
+    expect(drawer).toHaveClass("pointer-events-none");
+    expect(drawer).not.toHaveClass("pointer-events-auto");
+  });
+
+  it("captures pointer input while open instead of passing it to the canvas", () => {
+    const onWorkspacePointerDown = vi.fn();
+    const { container } = render(
+      <div onPointerDown={onWorkspacePointerDown}>
+        <OverlayDrawer side="left" open title="节点库" eyebrow="LIBRARY" onClose={vi.fn()}>
+          <button type="button">节点内容</button>
+        </OverlayDrawer>
+      </div>,
+    );
+    const drawer = container.querySelector("aside");
+    expect(drawer).toHaveClass("pointer-events-auto");
+    expect(drawer).not.toHaveClass("pointer-events-none");
+
+    fireEvent.pointerDown(screen.getByRole("button", { name: "节点内容" }));
+    expect(onWorkspacePointerDown).not.toHaveBeenCalled();
   });
 
   it("provides an explicit close action", () => {

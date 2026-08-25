@@ -2,6 +2,7 @@ import type { RefObject } from "react";
 import { AlertTriangle, CornerDownLeft, LoaderCircle, RotateCcw, Sparkles, Square } from "lucide-react";
 
 import { cn } from "../../lib/cn";
+import { MarqueeFrame } from "./MarqueeFrame";
 
 export type CommandBarMode = "idle" | "focused" | "loading" | "error";
 
@@ -34,20 +35,20 @@ export function MarqueeCommandBar({
   onStop,
   onRetry,
 }: Props) {
-  const duration = mode === "loading" ? "1.2s" : "2.8s";
+  const duration = mode === "loading" ? "3.6s" : "4.8s";
   return (
-    <div
+    <MarqueeFrame
+      active={mode !== "idle"}
+      duration={duration}
+      tone={mode === "error" ? "error" : "accent"}
       className={cn(
-        "absolute bottom-2.5 left-[calc(50%+var(--spacing-rail)/2)] z-40 w-[min(660px,calc(100vw-var(--spacing-rail)-40px))] -translate-x-1/2 overflow-hidden rounded-[15px] bg-line-strong p-px shadow-[0_18px_50px_rgb(0_0_0_/_45%),var(--shadow-glow)] before:absolute before:-inset-[260%] before:bg-[conic-gradient(from_0deg,transparent_0_70%,var(--color-accent-cyan)_78%,var(--color-accent-violet)_84%,transparent_92%)] before:opacity-0 before:transition-opacity before:duration-200 before:[animation:marquee-spin_var(--marquee-duration)_linear_infinite]",
-        mode !== "idle" && "before:opacity-100",
+        "absolute bottom-2.5 left-[calc(50%+var(--spacing-rail)/2)] z-40 w-[min(660px,calc(100vw-var(--spacing-rail)-40px))] -translate-x-1/2 rounded-[15px] shadow-[0_18px_50px_rgb(0_0_0_/_45%),var(--shadow-glow)]",
         mode === "loading" && "shadow-[0_18px_50px_rgb(0_0_0_/_45%),0_0_30px_rgb(86_217_255_/_22%)]",
-        mode === "error" && "bg-accent-red/50 shadow-[0_18px_50px_rgb(0_0_0_/_45%),0_0_26px_rgb(255_127_145_/_16%)] before:bg-[conic-gradient(from_0deg,transparent_0_70%,var(--color-accent-red)_80%,var(--color-accent-violet)_87%,transparent_94%)]",
+        mode === "error" && "bg-accent-red/50 shadow-[0_18px_50px_rgb(0_0_0_/_45%),0_0_26px_rgb(255_127_145_/_16%)]",
       )}
-      style={{ "--marquee-duration": duration } as React.CSSProperties}
-      data-duration={duration}
+      surfaceClassName="flex h-12 items-center rounded-[14px] bg-[#07131e]/96 py-0 pr-2 pl-3.5"
       aria-busy={mode === "loading"}
     >
-      <div className="relative flex h-12 items-center rounded-[14px] bg-[#07131e]/96 py-0 pr-2 pl-3.5">
         {mode === "loading" ? <LoaderCircle className="shrink-0 animate-[spin_.9s_linear_infinite] text-accent-cyan" size={18} /> : mode === "error" ? <AlertTriangle className="shrink-0 text-accent-red" size={18} /> : <Sparkles className="shrink-0 text-accent-cyan" size={18} />}
         <span className={cn("mr-1 rounded-full border px-1.5 py-0.5 text-[7px] font-black tracking-[.12em]", transportKind === "mock" ? "border-accent-amber/25 bg-accent-amber/9 text-accent-amber" : "border-accent-green/25 bg-accent-green/9 text-accent-green")} aria-label={`运行通道 ${transportKind}`}>
           {transportKind.toUpperCase()}
@@ -64,7 +65,7 @@ export function MarqueeCommandBar({
           </div>
         ) : (
           <input
-            className="h-full min-w-0 flex-1 border-0 bg-transparent px-3 outline-0 placeholder:text-faint"
+            className="h-full min-w-0 flex-1 border-0 bg-transparent px-3 outline-0 placeholder:text-faint focus-visible:shadow-none"
             ref={inputRef}
             value={value}
             aria-label="Agent 指令"
@@ -93,10 +94,9 @@ export function MarqueeCommandBar({
             <CornerDownLeft size={14} />
           </button>
         )}
-      </div>
       <span className="sr-only" role="status">
         {mode === "loading" ? "Agent 正在运行" : mode === "error" ? `Agent 运行失败：${errorMessage}` : mode === "focused" ? "指令栏已聚焦" : "指令栏空闲"}
       </span>
-    </div>
+    </MarqueeFrame>
   );
 }

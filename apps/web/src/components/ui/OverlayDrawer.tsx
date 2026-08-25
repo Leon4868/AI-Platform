@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactNode, SyntheticEvent } from "react";
 import { X } from "lucide-react";
 
 import { Glass } from "./Glass";
@@ -14,20 +14,28 @@ type OverlayDrawerProps = {
   onClose: () => void;
 };
 
+function stopInteractionPropagation(event: SyntheticEvent) {
+  event.stopPropagation();
+}
+
 export function OverlayDrawer({ side, open, title, eyebrow, children, onClose }: OverlayDrawerProps) {
   return (
     <Glass
       as="aside"
       strength="strong"
       className={cn(
-        "absolute top-[calc(var(--spacing-topbar)+12px)] bottom-31 z-25 flex w-[clamp(300px,24vw,356px)] flex-col overflow-hidden rounded-panel opacity-0 pointer-events-none transition-[transform,opacity] duration-200 ease-fluid max-sm:right-2.5 max-sm:bottom-16.5 max-sm:left-[calc(var(--spacing-rail)+10px)] max-sm:w-auto",
+        "nodrag nopan nowheel absolute top-[calc(var(--spacing-topbar)+12px)] bottom-31 z-25 flex w-[clamp(300px,24vw,356px)] flex-col overflow-hidden rounded-panel opacity-0 transition-[transform,opacity] duration-200 ease-fluid max-sm:right-2.5 max-sm:bottom-16.5 max-sm:left-[calc(var(--spacing-rail)+10px)] max-sm:w-auto",
         side === "left"
           ? "left-[calc(var(--spacing-rail)+12px)] -translate-x-[calc(100%+22px)]"
           : "right-3 w-[clamp(320px,27vw,398px)] translate-x-[calc(100%+22px)]",
-        open && "translate-x-0 opacity-100 pointer-events-auto",
+        open ? "translate-x-0 opacity-100 pointer-events-auto" : "pointer-events-none",
       )}
       aria-hidden={!open}
       inert={!open ? true : undefined}
+      onClick={stopInteractionPropagation}
+      onDoubleClick={stopInteractionPropagation}
+      onPointerDown={stopInteractionPropagation}
+      onWheel={stopInteractionPropagation}
     >
       <header className="flex items-center justify-between border-b border-line px-3.75 pt-3.75 pb-3.25">
         <div>

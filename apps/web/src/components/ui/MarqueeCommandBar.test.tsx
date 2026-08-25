@@ -5,20 +5,23 @@ import { describe, expect, it, vi } from "vitest";
 import { MarqueeCommandBar } from "./MarqueeCommandBar";
 
 describe("MarqueeCommandBar", () => {
-  it("uses the 2.8 second focused marquee", () => {
+  it("uses the slower 4.8 second focused marquee", () => {
     const { container } = render(
       <MarqueeCommandBar mode="focused" inputRef={createRef()} onModeChange={vi.fn()} onRun={vi.fn()} onStop={vi.fn()} />,
     );
-    expect(container.firstChild).toHaveAttribute("data-duration", "2.8s");
+    expect(container.firstChild).toHaveAttribute("data-duration", "4.8s");
+    expect(container.firstChild).toHaveAttribute("data-motion", "clockwise");
+    expect(container.firstChild).toHaveClass("absolute");
+    expect(container.firstChild).not.toHaveClass("relative");
     expect(container.firstChild).toHaveAttribute("aria-busy", "false");
   });
 
-  it("uses the 1.2 second loading marquee and exposes busy state", () => {
+  it("uses the slower 3.6 second loading marquee and exposes busy state", () => {
     const onStop = vi.fn();
     const { container } = render(
       <MarqueeCommandBar mode="loading" inputRef={createRef()} onModeChange={vi.fn()} onRun={vi.fn()} onStop={onStop} />,
     );
-    expect(container.firstChild).toHaveAttribute("data-duration", "1.2s");
+    expect(container.firstChild).toHaveAttribute("data-duration", "3.6s");
     expect(container.firstChild).toHaveAttribute("aria-busy", "true");
     expect(screen.getByRole("status")).toHaveTextContent("Agent 正在运行");
     expect(screen.getByText("正在运行 · 准备运行")).toBeInTheDocument();

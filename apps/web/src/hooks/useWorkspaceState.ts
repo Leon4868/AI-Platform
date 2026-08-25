@@ -43,13 +43,15 @@ function reducer(state: WorkspaceState, action: Action): WorkspaceState {
 export function useWorkspaceState() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const commandRef = useRef<HTMLInputElement>(null);
+  const nodeSearchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       if (event.key === "/" && target?.tagName !== "INPUT" && target?.tagName !== "TEXTAREA") {
         event.preventDefault();
-        commandRef.current?.focus();
+        if (state.leftDrawerOpen) nodeSearchRef.current?.focus();
+        else commandRef.current?.focus();
       }
       if (event.key === "Escape") dispatch({ type: "close-topmost" });
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
@@ -59,7 +61,7 @@ export function useWorkspaceState() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [state.leftDrawerOpen]);
 
-  return { state, dispatch, commandRef };
+  return { state, dispatch, commandRef, nodeSearchRef };
 }

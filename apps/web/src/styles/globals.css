@@ -50,8 +50,7 @@
 
   button { cursor: pointer; }
 
-  button:focus-visible,
-  input:focus-visible {
+  button:focus-visible {
     outline: none;
     box-shadow: 0 0 0 2px var(--color-canvas), 0 0 0 4px var(--color-accent-cyan);
   }
@@ -215,7 +214,40 @@
   background: var(--tone-color) !important;
 }
 
-@keyframes marquee-spin { to { transform: rotate(1turn); } }
+@layer components {
+  .marquee-base-track,
+  .marquee-orbit-track {
+    vector-effect: non-scaling-stroke;
+    stroke-linecap: round;
+    opacity: 0;
+    transition: opacity 200ms;
+  }
+
+  .marquee-base-track {
+    stroke-width: 1px;
+  }
+
+  .marquee-orbit-track {
+    stroke-dashoffset: 0;
+    filter: drop-shadow(0 0 4px var(--marquee-start));
+    animation: marquee-clockwise var(--marquee-duration) linear infinite;
+  }
+
+  .marquee-orbit-glow {
+    stroke-width: 3px;
+    filter: blur(.7px) drop-shadow(0 0 5px var(--marquee-start));
+  }
+
+  .marquee-orbit-core { stroke-width: 1.5px; }
+
+  [data-marquee-active="true"] > svg > .marquee-base-track { opacity: .72; }
+  [data-marquee-active="true"] > svg > .marquee-orbit-glow { opacity: .45; }
+  [data-marquee-active="true"] > svg > .marquee-orbit-core { opacity: 1; }
+}
+
+@keyframes marquee-clockwise {
+  to { stroke-dashoffset: -100; }
+}
 @keyframes spin { to { transform: rotate(1turn); } }
 @keyframes pulse-node { 50% { opacity: .45; transform: scale(.8); } }
 
