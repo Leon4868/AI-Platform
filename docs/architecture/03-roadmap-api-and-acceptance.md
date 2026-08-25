@@ -17,9 +17,9 @@
 
 ### 当前离线切片状态
 
-已完成：员工侧 Agent/知识库/文档/资产工作台；开发身份与权限快照；`txt/md/html` 离线解析、分块、词法检索、过滤和 Citation；定义校验、运行、人工暂停、取消与 SSE；Document Task 驱动真实 Workflow Run 并产出个人 Markdown Draft Asset；租户/部门/项目/密级 ACL；写操作幂等；资产哈希、血缘与可过期的短时下载 URL；OpenAI/Anthropic/Gemini 显式路由 Provider；Alembic 与持久 Repository 基线。
+已完成：员工侧 Agent/知识库/文档/资产工作台；开发身份与权限快照；`txt/md/html` 离线解析、分块、词法检索、过滤和 Citation；定义校验、运行、人工暂停、取消与 SSE；Document Task 驱动真实 Workflow Run 并产出个人 Markdown Draft Asset；租户/部门/项目/密级 ACL；写操作幂等；资产哈希、血缘与可过期的短时下载 URL；OpenAI/Anthropic/Gemini 显式路由 Provider；Alembic 启动迁移；核心业务实体、Run/Event、词法知识索引与审计的可切换 PostgreSQL Repository。
 
-未完成：企业微信、PostgreSQL Repository 全面启用与 pgvector、Redis/MQ 和任务恢复、混合检索/Rerank、PDF/DOCX/OCR、预算/费用账本、内容外发审批、正式审批发布、生产 Trace 查询面，以及完整 AWS/企业服务器部署演练。因此本节的“目标交付”不能视为当前全部可用能力。
+未完成：企业微信、幂等结果与 checkpoint 持久化、pgvector、Redis/MQ 和中断任务续跑、混合检索/Rerank、PDF/DOCX/OCR、预算持久账本、内容外发审批、正式审批发布、生产 Trace 查询面，以及完整 AWS/企业服务器部署演练。因此本节的“目标交付”不能视为当前全部可用能力。
 
 ## 2. 二期：200 人与多部门治理
 

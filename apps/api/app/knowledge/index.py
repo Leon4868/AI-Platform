@@ -4,6 +4,7 @@ import unicodedata
 from collections import Counter
 from dataclasses import dataclass
 from html.parser import HTMLParser
+from typing import Protocol
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 from app.assets.policy import can_read_resource
@@ -54,6 +55,38 @@ class IndexedChunk:
 class ScoredChunk:
     chunk: IndexedChunk
     score: float
+
+
+class KnowledgeIndex(Protocol):
+    async def replace_document(
+        self,
+        *,
+        tenant_id: UUID,
+        knowledge_base_id: UUID,
+        document_id: UUID,
+        asset_id: UUID,
+        creator_id: UUID,
+        owner_department_id: str,
+        project_id: str | None,
+        data_scope: DataScope,
+        security_level: SecurityLevel,
+        title: str,
+        chunks: list[str],
+    ) -> list[IndexedChunk]: ...
+
+    async def search(
+        self,
+        *,
+        tenant_id: UUID,
+        knowledge_base_id: UUID,
+        query: str,
+        top_k: int,
+        subject_id: UUID,
+        department_ids: frozenset[str],
+        project_ids: frozenset[str],
+        security_clearance: str,
+        filters: KnowledgeSearchFilters | None = None,
+    ) -> list[ScoredChunk]: ...
 
 
 def extract_document(uploaded: UploadedFile) -> ExtractedDocument:
@@ -156,27 +189,19 @@ class InMemoryKnowledgeIndex:
         title: str,
         chunks: list[str],
     ) -> list[IndexedChunk]:
-        indexed = [
-            IndexedChunk(
-                tenant_id=tenant_id,
-                knowledge_base_id=knowledge_base_id,
-                document_id=document_id,
-                asset_id=asset_id,
-                creator_id=creator_id,
-                owner_department_id=owner_department_id,
-                project_id=project_id,
-                data_scope=data_scope,
-                security_level=security_level,
-                chunk_id=uuid5(
-                    NAMESPACE_URL,
-                    f"knowledge:{tenant_id}:{knowledge_base_id}:{document_id}:{ordinal}:{text}",
-                ),
-                title=title,
-                ordinal=ordinal,
-                text=text,
-            )
-            for ordinal, text in enumerate(chunks)
-        ]
+        indexed = build_indexed_chunks(
+            tenant_id=tenant_id,
+            knowledge_base_id=knowledge_base_id,
+            document_id=document_id,
+            asset_id=asset_id,
+            creator_id=creator_id,
+            owner_department_id=owner_department_id,
+            project_id=project_id,
+            data_scope=data_scope,
+            security_level=security_level,
+            title=title,
+            chunks=chunks,
+        )
         key = (tenant_id, knowledge_base_id)
         async with self._lock:
             existing = [item for item in self._chunks.get(key, []) if item.document_id != document_id]
@@ -196,7 +221,7 @@ class InMemoryKnowledgeIndex:
         security_clearance: str,
         filters: KnowledgeSearchFilters | None = None,
     ) -> list[ScoredChunk]:
-        query_tokens = Counter(_tokens(query))
+        query_tokens = Counter(tokenize(query))
         if not query_tokens:
             return []
         candidates = [
@@ -222,18 +247,56 @@ class InMemoryKnowledgeIndex:
         scored = [
             ScoredChunk(chunk=chunk, score=score)
             for chunk in candidates
-            if (score := _lexical_score(query_tokens, chunk.text)) > 0
+            if (score := lexical_score(query_tokens, chunk.text)) > 0
         ]
         scored.sort(key=lambda item: (-item.score, item.chunk.ordinal, str(item.chunk.chunk_id)))
         return scored[:top_k]
 
 
-def _tokens(text: str) -> list[str]:
+def build_indexed_chunks(
+    *,
+    tenant_id: UUID,
+    knowledge_base_id: UUID,
+    document_id: UUID,
+    asset_id: UUID,
+    creator_id: UUID,
+    owner_department_id: str,
+    project_id: str | None,
+    data_scope: DataScope,
+    security_level: SecurityLevel,
+    title: str,
+    chunks: list[str],
+) -> list[IndexedChunk]:
+    """Build stable chunk identities shared by memory and PostgreSQL indexes."""
+    return [
+        IndexedChunk(
+            tenant_id=tenant_id,
+            knowledge_base_id=knowledge_base_id,
+            document_id=document_id,
+            asset_id=asset_id,
+            creator_id=creator_id,
+            owner_department_id=owner_department_id,
+            project_id=project_id,
+            data_scope=data_scope,
+            security_level=security_level,
+            chunk_id=uuid5(
+                NAMESPACE_URL,
+                f"knowledge:{tenant_id}:{knowledge_base_id}:{document_id}:{ordinal}:{text}",
+            ),
+            title=title,
+            ordinal=ordinal,
+            text=text,
+        )
+        for ordinal, text in enumerate(chunks)
+    ]
+
+
+def tokenize(text: str) -> list[str]:
     return [match.group(0).casefold() for match in _TOKEN_PATTERN.finditer(normalize_text(text))]
 
 
-def _lexical_score(query_tokens: Counter[str], text: str) -> float:
-    document_tokens = Counter(_tokens(text))
+def lexical_score(query_tokens: Counter[str], text: str) -> float:
+    document_tokens = Counter(tokenize(text))
     matched = sum(min(count, document_tokens[token]) for token, count in query_tokens.items())
     if matched == 0:
         return 0.0

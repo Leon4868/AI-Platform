@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     environment: Literal["development", "test", "production"] = "development"
     api_prefix: str = "/api/v1"
     database_url: str | None = Field(default=None, repr=False)
+    repository_backend: Literal["memory", "postgresql"] = "memory"
     storage_backend: Literal["memory", "s3"] = "memory"
     s3_endpoint_url: str | None = None
     s3_region: str = "us-east-1"

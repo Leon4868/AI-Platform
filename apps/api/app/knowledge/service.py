@@ -13,7 +13,7 @@ from app.core.storage import ObjectStorage
 from app.identity.schemas import Principal
 from app.knowledge.index import (
     DocumentExtractionError,
-    InMemoryKnowledgeIndex,
+    KnowledgeIndex,
     chunk_text,
     extract_document,
 )
@@ -94,7 +94,7 @@ class KnowledgeDocumentService:
         storage: ObjectStorage,
         asset_repository: Repository[Asset],
         audit_service: AuditService,
-        index: InMemoryKnowledgeIndex,
+        index: KnowledgeIndex,
     ) -> None:
         self._storage = storage
         self._assets = asset_repository

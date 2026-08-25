@@ -21,11 +21,15 @@ from app.workflows.router import router as workflows_router
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
-    yield
-    # In-flight runs are background tasks; without this they are torn down
-    # mid-node and never emit a terminal event to their subscribers.
-    await app.state.container.workflow_run_service.aclose()
-    await app.state.container.document_task_coordinator.aclose()
+    try:
+        yield
+    finally:
+        # In-flight runs are background tasks; without this they are torn down
+        # mid-node and never emit a terminal event to their subscribers.
+        await app.state.container.workflow_run_service.aclose()
+        await app.state.container.document_task_coordinator.aclose()
+        if app.state.container.database is not None:
+            await app.state.container.database.close()
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -90,9 +94,27 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def liveness() -> dict[str, str]:
         return {"status": "ok"}
 
-    @app.get("/health/ready", tags=["health"])
-    async def readiness() -> dict[str, str]:
-        return {"status": "ready", "repository": "memory", "storage": settings.storage_backend}
+    @app.get("/health/ready", tags=["health"], response_model=None)
+    async def readiness() -> dict[str, str] | JSONResponse:
+        database = app.state.container.database
+        try:
+            if database is not None:
+                await database.ping()
+            await app.state.container.object_storage.ping()
+        except Exception:
+            return JSONResponse(
+                {
+                    "status": "unready",
+                    "repository": app.state.container.repository_backend,
+                    "storage": settings.storage_backend,
+                },
+                status_code=503,
+            )
+        return {
+            "status": "ready",
+            "repository": app.state.container.repository_backend,
+            "storage": settings.storage_backend,
+        }
 
     app.include_router(workflows_router, prefix=settings.api_prefix)
     app.include_router(workflow_runs_router, prefix=settings.api_prefix)

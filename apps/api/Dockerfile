@@ -6,6 +6,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 COPY apps/api/pyproject.toml ./pyproject.toml
 COPY apps/api/app ./app
+COPY apps/api/alembic.ini ./alembic.ini
+COPY apps/api/alembic ./alembic
 RUN pip install --no-cache-dir .
 
 EXPOSE 8000

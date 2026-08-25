@@ -33,12 +33,13 @@ Workflow Runtime    Model Gateway
 ├── human pause     └── Gemini generateContent adapter
 └── LangGraph port       │
       │                    ▼
-      ├── In-memory repositories/index (current)
-      ├── PostgreSQL + pgvector / Redis / MQ (planned)
+      ├── PostgreSQL repositories (core + run/event + lexical index + audit)
+      ├── In-memory executor/idempotency (current)
+      ├── pgvector / Redis / MQ (planned)
       └── ObjectStorage (memory/S3 current → enterprise compatible)
 ```
 
-一期验收默认启用进程内确定性执行器、词法知识索引与确定性 Markdown Composer，因此不需要外部 API Key。设置显式逻辑模型路由和对应凭证后，可将文档 Composer 切到三家外部 Provider；没有自动 fallback。`LangGraphExecutor` 当前是适配边界而不是已启用依赖；二期需要跨进程 checkpoint、长任务恢复和分布式 Worker 时，再由该边界接入 LangGraph 与队列。Alembic 初始迁移和租户隔离 Repository 已提供，但当前 Container 仍使用内存实现；切换 PostgreSQL 前还必须完成全部运行态仓储接管与重启恢复测试。
+一期验收默认启用进程内确定性执行器、词法知识索引与确定性 Markdown Composer，因此不需要外部 API Key。设置显式逻辑模型路由和对应凭证后，可将文档 Composer 切到三家外部 Provider；没有自动 fallback。`APP_REPOSITORY_BACKEND=postgresql` 会让核心业务实体、Run/Event 和审计接入 PostgreSQL，Compose 在 API 前执行 Alembic；SSE 可跨 API 进程轮询持久事件。`LangGraphExecutor` 当前仍是适配边界，二期还需持久化 checkpoint、幂等结果并接入队列，才能让中断的执行任务自动恢复。
 
 ## 3. 不可跨越的边界
 

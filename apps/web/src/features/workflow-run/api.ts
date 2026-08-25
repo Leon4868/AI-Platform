@@ -8,12 +8,7 @@ import type {
   WorkflowRunSnapshot,
   WorkflowRunTransport,
 } from "./types";
-
-type ProblemDetails = {
-  error_code?: string;
-  detail?: string;
-  title?: string;
-};
+import { normalizeProblemResponse } from "../../lib/problem-details";
 
 export type SseFrame = { id?: string; event?: string; data: string };
 
@@ -78,16 +73,13 @@ export function normalizeRunError(error: unknown): WorkflowRunError {
 
 async function readJson<T>(response: Response): Promise<T> {
   if (response.ok) return response.json() as Promise<T>;
-
-  let problem: ProblemDetails = {};
-  try {
-    problem = await response.json() as ProblemDetails;
-  } catch {
-    // Non-JSON gateway errors are still surfaced explicitly to the user.
-  }
+  const problem = await normalizeProblemResponse(
+    response,
+    `运行服务请求失败（${response.status}）`,
+  );
   throw new WorkflowTransportError({
-    code: problem.error_code ?? `http_${response.status}`,
-    message: problem.detail ?? problem.title ?? `运行服务请求失败（${response.status}）`,
+    code: problem.code,
+    message: problem.message,
     retryable: response.status >= 500 || response.status === 408 || response.status === 429,
   });
 }

@@ -3,8 +3,9 @@ from dataclasses import dataclass
 from app.assets.schemas import Asset
 from app.audit.service import AuditService
 from app.core.config import Settings
-from app.core.idempotency import InMemoryIdempotencyStore
-from app.core.repository import InMemoryRepository
+from app.core.database import Database
+from app.core.idempotency import IdempotencyStore, InMemoryIdempotencyStore
+from app.core.repository import InMemoryRepository, Repository
 from app.core.service import ReadService
 from app.core.storage import (
     InMemoryObjectStorage,
@@ -21,7 +22,8 @@ from app.documents.service import (
 )
 from app.identity.development import DevelopmentIdentityProvider
 from app.identity.provider import IdentityProvider
-from app.knowledge.index import InMemoryKnowledgeIndex
+from app.knowledge.index import InMemoryKnowledgeIndex, KnowledgeIndex
+from app.knowledge.sql_index import SQLAlchemyKnowledgeIndex
 from app.knowledge.schemas import KnowledgeBase
 from app.model_gateway.gateway import ModelGateway, RoutingModelGateway, UnconfiguredModelGateway
 from app.model_gateway.providers import (
@@ -32,8 +34,14 @@ from app.model_gateway.providers import (
 from app.model_gateway.routing import ModelRouteRegistry, ModelRoutingConfig
 from app.model_gateway.schemas import ModelProvider
 from app.model_gateway.transport import HttpxModelHttpTransport
+from app.persistence.asset_repository import SQLAlchemyAssetRepository
+from app.persistence.audit_service import SQLAlchemyAuditService
+from app.persistence.document_repository import SQLAlchemyDocumentRepository
+from app.persistence.knowledge_repository import SQLAlchemyKnowledgeBaseRepository
+from app.persistence.workflow_repository import SQLAlchemyWorkflowRepository
 from app.runtime.executor import InProcessGraphExecutor
-from app.runtime.repository import InMemoryWorkflowRunRepository
+from app.runtime.repository import InMemoryWorkflowRunRepository, WorkflowRunRepository
+from app.runtime.sql_repository import SQLAlchemyWorkflowRunRepository
 from app.runtime.service import WorkflowRunService
 from app.workflows.schemas import WorkflowDefinition
 from app.workflows.service import WorkflowService
@@ -42,22 +50,25 @@ from app.workflows.validator import WorkflowGraphValidator
 
 @dataclass(slots=True)
 class Container:
+    repository_backend: str
+    database: Database | None
     identity_provider: IdentityProvider
     object_storage: ObjectStorage
     model_gateway: ModelGateway
     audit_service: AuditService
-    idempotency_store: InMemoryIdempotencyStore
-    workflow_repository: InMemoryRepository[WorkflowDefinition]
+    idempotency_store: IdempotencyStore
+    workflow_repository: Repository[WorkflowDefinition]
     workflow_service: WorkflowService
+    workflow_run_repository: WorkflowRunRepository
     workflow_run_service: WorkflowRunService
-    knowledge_repository: InMemoryRepository[KnowledgeBase]
+    knowledge_repository: Repository[KnowledgeBase]
     knowledge_service: ReadService[KnowledgeBase]
-    knowledge_index: InMemoryKnowledgeIndex
-    document_repository: InMemoryRepository[DocumentGenerationJob]
+    knowledge_index: KnowledgeIndex
+    document_repository: Repository[DocumentGenerationJob]
     document_service: ReadService[DocumentGenerationJob]
     document_task_service: DocumentTaskService
     document_task_coordinator: DocumentTaskCoordinator
-    asset_repository: InMemoryRepository[Asset]
+    asset_repository: Repository[Asset]
     asset_service: ReadService[Asset]
 
 
@@ -81,15 +92,38 @@ def build_container(settings: Settings, *, identity_provider: IdentityProvider |
     else:
         object_storage = InMemoryObjectStorage()
 
-    audit_service = AuditService()
     model_gateway = _build_model_gateway(settings)
-    workflow_repository: InMemoryRepository[WorkflowDefinition] = InMemoryRepository()
-    knowledge_repository: InMemoryRepository[KnowledgeBase] = InMemoryRepository()
-    document_repository: InMemoryRepository[DocumentGenerationJob] = InMemoryRepository()
-    asset_repository: InMemoryRepository[Asset] = InMemoryRepository()
+    database: Database | None = None
+    if settings.repository_backend == "postgresql":
+        if not settings.database_url:
+            raise RuntimeError("APP_DATABASE_URL is required when APP_REPOSITORY_BACKEND=postgresql")
+        database = Database(settings.database_url)
+        audit_service = SQLAlchemyAuditService(database.session_factory)
+        workflow_repository: Repository[WorkflowDefinition] = SQLAlchemyWorkflowRepository(
+            database.session_factory
+        )
+        knowledge_repository: Repository[KnowledgeBase] = SQLAlchemyKnowledgeBaseRepository(
+            database.session_factory
+        )
+        document_repository: Repository[DocumentGenerationJob] = SQLAlchemyDocumentRepository(
+            database.session_factory
+        )
+        asset_repository: Repository[Asset] = SQLAlchemyAssetRepository(database.session_factory)
+        workflow_run_repository: WorkflowRunRepository = SQLAlchemyWorkflowRunRepository(
+            database.session_factory
+        )
+        knowledge_index: KnowledgeIndex = SQLAlchemyKnowledgeIndex(database.session_factory)
+    else:
+        audit_service = AuditService()
+        workflow_repository = InMemoryRepository()
+        knowledge_repository = InMemoryRepository()
+        document_repository = InMemoryRepository()
+        asset_repository = InMemoryRepository()
+        workflow_run_repository = InMemoryWorkflowRunRepository()
+        knowledge_index = InMemoryKnowledgeIndex()
     workflow_run_service = WorkflowRunService(
         workflow_repository,
-        InMemoryWorkflowRunRepository(),
+        workflow_run_repository,
         InProcessGraphExecutor(),
         audit_service,
     )
@@ -106,6 +140,8 @@ def build_container(settings: Settings, *, identity_provider: IdentityProvider |
         composer,
     )
     return Container(
+        repository_backend=settings.repository_backend,
+        database=database,
         identity_provider=identity_provider,
         object_storage=object_storage,
         model_gateway=model_gateway,
@@ -113,10 +149,11 @@ def build_container(settings: Settings, *, identity_provider: IdentityProvider |
         idempotency_store=InMemoryIdempotencyStore(),
         workflow_repository=workflow_repository,
         workflow_service=WorkflowService(workflow_repository, WorkflowGraphValidator(), audit_service),
+        workflow_run_repository=workflow_run_repository,
         workflow_run_service=workflow_run_service,
         knowledge_repository=knowledge_repository,
         knowledge_service=ReadService(knowledge_repository, "knowledge_base"),
-        knowledge_index=InMemoryKnowledgeIndex(),
+        knowledge_index=knowledge_index,
         document_repository=document_repository,
         document_service=ReadService(document_repository, "document_generation_job"),
         document_task_service=document_task_service,

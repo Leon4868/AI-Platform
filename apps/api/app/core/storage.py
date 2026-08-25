@@ -6,6 +6,8 @@ from uuid import uuid4
 
 
 class ObjectStorage(Protocol):
+    async def ping(self) -> None: ...
+
     async def put(self, key: str, data: bytes, *, content_type: str) -> None: ...
 
     async def get(self, key: str) -> bytes: ...
@@ -21,6 +23,9 @@ class InMemoryObjectStorage:
     def __init__(self) -> None:
         self._objects: dict[str, tuple[bytes, str]] = {}
         self._download_tokens: dict[str, tuple[str, float]] = {}
+
+    async def ping(self) -> None:
+        return None
 
     async def put(self, key: str, data: bytes, *, content_type: str) -> None:
         self._objects[key] = (bytes(data), content_type)
@@ -84,6 +89,9 @@ class S3CompatibleObjectStorage:
             aws_secret_access_key=options.secret_key,
             config=Config(s3={"addressing_style": addressing_style}),
         )
+
+    async def ping(self) -> None:
+        await asyncio.to_thread(self._client.head_bucket, Bucket=self._bucket)
 
     async def put(self, key: str, data: bytes, *, content_type: str) -> None:
         await asyncio.to_thread(

@@ -75,6 +75,23 @@ describe("HttpWorkflowRunTransport", () => {
     );
   });
 
+  it("extracts the code from RFC Problem Details", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: false,
+      status: 403,
+      json: async () => ({
+        type: "urn:enterprise-ai:error:forbidden",
+        title: "Forbidden",
+        detail: "无权运行此工作流",
+      }),
+    } as Response));
+    const transport = new HttpWorkflowRunTransport();
+
+    await expect(transport.start("workflow-1", { input: { command: "运行" } })).rejects.toMatchObject({
+      detail: { code: "forbidden", message: "无权运行此工作流", retryable: false },
+    });
+  });
+
   it("sends an optional cancellation reason as JSON", async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse());
     vi.stubGlobal("fetch", fetchMock);

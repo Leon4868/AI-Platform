@@ -6,7 +6,7 @@ import json
 from collections.abc import Awaitable, Callable, Mapping
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import Any, TypeVar
+from typing import Any, Protocol, TypeVar
 from uuid import UUID
 
 from app.core.errors import ConflictError
@@ -26,6 +26,15 @@ class IdempotencyScope:
 class _StoredResult:
     fingerprint: str
     value: Any
+
+
+class IdempotencyStore(Protocol):
+    async def execute(
+        self,
+        scope: IdempotencyScope,
+        fingerprint: str,
+        command: Callable[[], Awaitable[T]],
+    ) -> T: ...
 
 
 class InMemoryIdempotencyStore:

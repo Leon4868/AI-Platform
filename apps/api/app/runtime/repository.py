@@ -10,6 +10,7 @@ from collections import defaultdict
 from collections.abc import AsyncIterator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from copy import deepcopy
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Protocol
 from uuid import UUID, uuid4
@@ -19,8 +20,42 @@ from app.runtime.schemas import RunEvent, RunEventType, WorkflowRun
 MAX_EVENT_PAGE = 500
 
 
+@dataclass(frozen=True, slots=True)
+class RunEventWrite:
+    type: RunEventType
+    node_id: str | None = None
+    data: dict[str, Any] | None = None
+
+
+class StaleWorkflowRunError(RuntimeError):
+    def __init__(
+        self,
+        run_id: UUID,
+        *,
+        expected_updated_at: datetime,
+        actual_updated_at: datetime,
+    ) -> None:
+        super().__init__(f"workflow run {run_id} was updated by another writer")
+        self.run_id = run_id
+        self.expected_updated_at = expected_updated_at
+        self.actual_updated_at = actual_updated_at
+
+
 class WorkflowRunRepository(Protocol):
-    async def add(self, run: WorkflowRun) -> WorkflowRun: ...
+    async def create_with_event(
+        self,
+        run: WorkflowRun,
+        *,
+        event: RunEventWrite,
+    ) -> tuple[WorkflowRun, RunEvent]: ...
+
+    async def transition_with_events(
+        self,
+        run: WorkflowRun,
+        *,
+        expected_updated_at: datetime,
+        events: list[RunEventWrite],
+    ) -> tuple[WorkflowRun, list[RunEvent]]: ...
 
     async def get(self, tenant_id: UUID, run_id: UUID) -> WorkflowRun | None: ...
 
@@ -32,18 +67,6 @@ class WorkflowRunRepository(Protocol):
         limit: int,
         offset: int,
     ) -> tuple[list[WorkflowRun], int]: ...
-
-    async def update(self, run: WorkflowRun) -> WorkflowRun: ...
-
-    async def append_event(
-        self,
-        *,
-        tenant_id: UUID,
-        run_id: UUID,
-        event_type: RunEventType,
-        node_id: str | None = None,
-        data: dict[str, Any] | None = None,
-    ) -> RunEvent: ...
 
     async def list_events(
         self,
@@ -74,12 +97,49 @@ class InMemoryWorkflowRunRepository:
         self._subscribers: dict[UUID, list[asyncio.Queue[RunEvent]]] = defaultdict(list)
         self._lock = asyncio.Lock()
 
-    async def add(self, run: WorkflowRun) -> WorkflowRun:
+    async def create_with_event(
+        self,
+        run: WorkflowRun,
+        *,
+        event: RunEventWrite,
+    ) -> tuple[WorkflowRun, RunEvent]:
         async with self._lock:
             if run.id in self._runs:
                 raise ValueError(f"duplicate run id: {run.id}")
+            created_event = _make_events(run, 0, [event])[0]
             self._runs[run.id] = run.model_copy(deep=True)
-        return run.model_copy(deep=True)
+            self._events[run.id] = [created_event]
+            self._notify_locked(run.id, [created_event])
+        return run.model_copy(deep=True), created_event.model_copy(deep=True)
+
+    async def transition_with_events(
+        self,
+        run: WorkflowRun,
+        *,
+        expected_updated_at: datetime,
+        events: list[RunEventWrite],
+    ) -> tuple[WorkflowRun, list[RunEvent]]:
+        if not events:
+            raise ValueError("a workflow run transition must append at least one event")
+        async with self._lock:
+            current = self._runs.get(run.id)
+            if current is None or current.tenant_id != run.tenant_id:
+                raise KeyError(run.id)
+            if current.updated_at != expected_updated_at:
+                raise StaleWorkflowRunError(
+                    run.id,
+                    expected_updated_at=expected_updated_at,
+                    actual_updated_at=current.updated_at,
+                )
+            log = self._events[run.id]
+            created_events = _make_events(run, len(log), events)
+            self._runs[run.id] = run.model_copy(deep=True)
+            log.extend(created_events)
+            self._notify_locked(run.id, created_events)
+        return (
+            run.model_copy(deep=True),
+            [event.model_copy(deep=True) for event in created_events],
+        )
 
     async def get(self, tenant_id: UUID, run_id: UUID) -> WorkflowRun | None:
         run = self._runs.get(run_id)
@@ -104,14 +164,6 @@ class InMemoryWorkflowRunRepository:
         page = [run.model_copy(deep=True) for run in runs[offset : offset + limit]]
         return page, len(runs)
 
-    async def update(self, run: WorkflowRun) -> WorkflowRun:
-        async with self._lock:
-            current = self._runs.get(run.id)
-            if current is None or current.tenant_id != run.tenant_id:
-                raise KeyError(run.id)
-            self._runs[run.id] = run.model_copy(deep=True)
-        return run.model_copy(deep=True)
-
     async def delete(self, tenant_id: UUID, run_id: UUID) -> bool:
         async with self._lock:
             current = self._runs.get(run_id)
@@ -121,31 +173,10 @@ class InMemoryWorkflowRunRepository:
             self._events.pop(run_id, None)
             return True
 
-    async def append_event(
-        self,
-        *,
-        tenant_id: UUID,
-        run_id: UUID,
-        event_type: RunEventType,
-        node_id: str | None = None,
-        data: dict[str, Any] | None = None,
-    ) -> RunEvent:
-        async with self._lock:
-            log = self._events[run_id]
-            event = RunEvent(
-                id=uuid4(),
-                tenant_id=tenant_id,
-                run_id=run_id,
-                sequence=len(log) + 1,
-                type=event_type,
-                occurred_at=datetime.now(UTC),
-                node_id=node_id,
-                data=deepcopy(data) if data else {},
-            )
-            log.append(event)
+    def _notify_locked(self, run_id: UUID, events: list[RunEvent]) -> None:
+        for event in events:
             for queue in self._subscribers[run_id]:
                 queue.put_nowait(event)
-        return event.model_copy(deep=True)
 
     async def list_events(
         self,
@@ -184,6 +215,27 @@ class InMemoryWorkflowRunRepository:
                     subscribers.remove(queue)
                 if not subscribers:
                     self._subscribers.pop(run_id, None)
+
+
+def _make_events(
+    run: WorkflowRun,
+    previous_sequence: int,
+    writes: list[RunEventWrite],
+) -> list[RunEvent]:
+    occurred_at = datetime.now(UTC)
+    return [
+        RunEvent(
+            id=uuid4(),
+            tenant_id=run.tenant_id,
+            run_id=run.id,
+            sequence=previous_sequence + offset,
+            type=write.type,
+            occurred_at=occurred_at,
+            node_id=write.node_id,
+            data=deepcopy(write.data) if write.data else {},
+        )
+        for offset, write in enumerate(writes, start=1)
+    ]
 
 
 async def _replay_then_follow(

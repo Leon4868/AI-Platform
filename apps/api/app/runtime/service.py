@@ -9,7 +9,7 @@ import asyncio
 from collections.abc import AsyncIterator
 from contextlib import suppress
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -25,7 +25,11 @@ from app.runtime.executor import (
     GraphExecutor,
     StepKind,
 )
-from app.runtime.repository import WorkflowRunRepository
+from app.runtime.repository import (
+    RunEventWrite,
+    StaleWorkflowRunError,
+    WorkflowRunRepository,
+)
 from app.runtime.schemas import (
     TERMINAL_EVENT_TYPES,
     TERMINAL_RUN_STATUSES,
@@ -91,7 +95,7 @@ class WorkflowRunService:
             raise NotFoundError("workflow_definition", str(workflow_id))
 
         now = datetime.now(UTC)
-        run = await self._runs.add(
+        run, _ = await self._runs.create_with_event(
             WorkflowRun(
                 id=uuid4(),
                 tenant_id=principal.tenant_id,
@@ -104,13 +108,11 @@ class WorkflowRunService:
                 input=payload.input,
                 created_at=now,
                 updated_at=now,
-            )
-        )
-        await self._runs.append_event(
-            tenant_id=run.tenant_id,
-            run_id=run.id,
-            event_type=RunEventType.RUN_QUEUED,
-            data={"workflow_id": str(workflow.id), "workflow_revision": workflow.revision},
+            ),
+            event=RunEventWrite(
+                type=RunEventType.RUN_QUEUED,
+                data={"workflow_id": str(workflow.id), "workflow_revision": workflow.revision},
+            ),
         )
         await self._audit.record(
             tenant_id=principal.tenant_id,
@@ -366,31 +368,42 @@ class WorkflowRunService:
                     updates["pending_approval"] = None
 
             updates["node_executions"] = executions
-            updates["updated_at"] = now
-            execution.run = run.model_copy(update=updates)
-            await self._runs.update(execution.run)
-
+            updates["updated_at"] = _monotonic_updated_at(run.updated_at, now)
             # A node that was still open is closed out in its own event before
             # the run's, so a replayed stream shows every node reaching a
             # terminal state rather than stopping mid-flight.
-            for node_id in cancelled_nodes:
-                await self._runs.append_event(
-                    tenant_id=run.tenant_id,
-                    run_id=run.id,
-                    event_type=RunEventType.NODE_CANCELLED,
+            event_writes = [
+                RunEventWrite(
+                    type=RunEventType.NODE_CANCELLED,
                     node_id=node_id,
                     data={"reason": execution.cancel_reason} if execution.cancel_reason else None,
                 )
+                for node_id in cancelled_nodes
+            ]
             data = _event_data(step)
             if step.kind is StepKind.RUN_CANCELLED and execution.cancel_reason:
                 data["reason"] = execution.cancel_reason
-            await self._runs.append_event(
-                tenant_id=run.tenant_id,
-                run_id=run.id,
-                event_type=_EVENT_BY_STEP[step.kind],
-                node_id=step.node_id,
-                data=data,
+            event_writes.append(
+                RunEventWrite(
+                    type=_EVENT_BY_STEP[step.kind],
+                    node_id=step.node_id,
+                    data=data,
+                )
             )
+            candidate = run.model_copy(update=updates)
+            try:
+                stored, _ = await self._runs.transition_with_events(
+                    candidate,
+                    expected_updated_at=run.updated_at,
+                    events=event_writes,
+                )
+            except StaleWorkflowRunError:
+                latest = await self.get(run.tenant_id, run.id)
+                execution.run = latest
+                if latest.status in TERMINAL_RUN_STATUSES:
+                    return
+                raise
+            execution.run = stored
 
     async def _record(
         self,
@@ -406,47 +419,82 @@ class WorkflowRunService:
             run = execution.run
             if run.status in TERMINAL_RUN_STATUSES:
                 return run
-            execution.run = run.model_copy(update={**updates, "updated_at": datetime.now(UTC)})
-            stored = await self._runs.update(execution.run)
-            await self._runs.append_event(
-                tenant_id=run.tenant_id,
-                run_id=run.id,
-                event_type=event_type,
-                node_id=node_id,
-                data=data,
+            candidate = run.model_copy(
+                update={
+                    **updates,
+                    "updated_at": _monotonic_updated_at(run.updated_at),
+                }
             )
+            try:
+                stored, _ = await self._runs.transition_with_events(
+                    candidate,
+                    expected_updated_at=run.updated_at,
+                    events=[RunEventWrite(type=event_type, node_id=node_id, data=data)],
+                )
+            except StaleWorkflowRunError:
+                latest = await self.get(run.tenant_id, run.id)
+                execution.run = latest
+                if latest.status in TERMINAL_RUN_STATUSES:
+                    return latest
+                raise
+            execution.run = stored
             return stored
 
     async def _mark_cancelled_without_task(self, run: WorkflowRun, reason: str | None) -> WorkflowRun:
         """Closes out a run whose task is gone, e.g. one orphaned by a restart."""
-        now = datetime.now(UTC)
-        executions = [item.model_copy(deep=True) for item in run.node_executions]
-        cancelled_nodes = _cancel_unfinished_nodes(executions, now)
-        cancelled = run.model_copy(
-            update={
-                "status": RunStatus.CANCELLED,
-                "pending_approval": None,
-                "node_executions": executions,
-                "finished_at": now,
-                "updated_at": now,
-            }
-        )
-        stored = await self._runs.update(cancelled)
-        for node_id in cancelled_nodes:
-            await self._runs.append_event(
-                tenant_id=run.tenant_id,
-                run_id=run.id,
-                event_type=RunEventType.NODE_CANCELLED,
-                node_id=node_id,
-                data={"reason": reason} if reason else None,
+        current = run
+        while True:
+            now = datetime.now(UTC)
+            executions = [item.model_copy(deep=True) for item in current.node_executions]
+            cancelled_nodes = _cancel_unfinished_nodes(executions, now)
+            cancelled = current.model_copy(
+                update={
+                    "status": RunStatus.CANCELLED,
+                    "pending_approval": None,
+                    "node_executions": executions,
+                    "finished_at": now,
+                    "updated_at": _monotonic_updated_at(current.updated_at, now),
+                }
             )
-        await self._runs.append_event(
-            tenant_id=run.tenant_id,
-            run_id=run.id,
-            event_type=RunEventType.RUN_CANCELLED,
-            data={"reason": reason} if reason else None,
-        )
-        return stored
+            events = [
+                RunEventWrite(
+                    type=RunEventType.NODE_CANCELLED,
+                    node_id=node_id,
+                    data={"reason": reason} if reason else None,
+                )
+                for node_id in cancelled_nodes
+            ]
+            events.append(
+                RunEventWrite(
+                    type=RunEventType.RUN_CANCELLED,
+                    data={"reason": reason} if reason else None,
+                )
+            )
+            try:
+                stored, _ = await self._runs.transition_with_events(
+                    cancelled,
+                    expected_updated_at=current.updated_at,
+                    events=events,
+                )
+                return stored
+            except StaleWorkflowRunError:
+                current = await self.get(run.tenant_id, run.id)
+                if current.status is RunStatus.CANCELLED:
+                    return current
+                if current.status in TERMINAL_RUN_STATUSES:
+                    raise ConflictError(
+                        f"Run already finished as {current.status} and cannot be cancelled"
+                    )
+
+
+def _monotonic_updated_at(previous: datetime, current: datetime | None = None) -> datetime:
+    """Return a timestamp that can safely act as an optimistic-lock token.
+
+    PostgreSQL stores microsecond precision. Two transitions may otherwise be
+    assigned the same wall-clock value and make a stale writer look current.
+    """
+    candidate = current or datetime.now(UTC)
+    return candidate if candidate > previous else previous + timedelta(microseconds=1)
 
 
 def _cancel_unfinished_nodes(executions: list[NodeExecution], now: datetime) -> list[str]:

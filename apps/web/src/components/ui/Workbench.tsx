@@ -12,12 +12,12 @@ export function TransportBadge({ kind }: { kind: "http" | "mock" }) {
   );
 }
 
-export function PageShell({ eyebrow, title, description, transportKind, actions, children }: { eyebrow: string; title: string; description: string; transportKind: "http" | "mock"; actions?: ReactNode; children: ReactNode }) {
+export function PageShell({ eyebrow, title, description, transportKind, actions, children }: { eyebrow: string; title: string; description: string; transportKind?: "http" | "mock"; actions?: ReactNode; children: ReactNode }) {
   return (
     <section className="absolute inset-y-0 right-0 left-rail overflow-y-auto bg-[radial-gradient(circle_at_70%_0%,rgb(62_121_176_/_16%),transparent_34%)] [scrollbar-color:rgb(121_175_214_/_26%)_transparent] [scrollbar-width:thin]">
       <Glass as="header" className="sticky top-0 z-20 flex min-h-20 items-center justify-between gap-4 rounded-none border-x-0 border-t-0 bg-[#06111d]/86 px-5 py-3 shadow-none backdrop-blur-2xl max-sm:items-start max-sm:px-3.5">
         <div className="min-w-0">
-          <div className="mb-1.5 flex items-center gap-2"><p className="text-[8px] font-black tracking-[.16em] text-accent-cyan">{eyebrow}</p><TransportBadge kind={transportKind} /></div>
+          <div className="mb-1.5 flex items-center gap-2"><p className="text-[8px] font-black tracking-[.16em] text-accent-cyan">{eyebrow}</p>{transportKind ? <TransportBadge kind={transportKind} /> : null}</div>
           <h1 className="m-0 text-xl font-semibold tracking-[-.02em] max-sm:text-base">{title}</h1>
           <p className="mt-1 max-w-2xl text-[10px] leading-5 text-muted max-sm:hidden">{description}</p>
         </div>
@@ -62,13 +62,20 @@ const statusTone: Record<string, string> = {
   running: "border-accent-cyan/25 bg-accent-cyan/9 text-accent-cyan",
   queued: "border-accent-blue/25 bg-accent-blue/9 text-accent-blue",
   waiting_human: "border-accent-amber/25 bg-accent-amber/9 text-accent-amber",
+  preview: "border-accent-amber/25 bg-accent-amber/9 text-accent-amber",
+  pending_api: "border-accent-blue/25 bg-accent-blue/9 text-accent-blue",
   failed: "border-accent-red/25 bg-accent-red/9 text-accent-red",
   cancelled: "border-line bg-white/3 text-muted",
   draft: "border-accent-violet/25 bg-accent-violet/9 text-accent-violet",
 };
 
+const statusLabel: Record<string, string> = {
+  preview: "预览",
+  pending_api: "API 待接入",
+};
+
 export function StatusBadge({ status }: { status: string }) {
-  return <span className={cn("inline-flex items-center rounded-full border px-2 py-0.75 text-[8px] font-bold", statusTone[status] ?? "border-line bg-white/3 text-muted")}>{status}</span>;
+  return <span className={cn("inline-flex items-center rounded-full border px-2 py-0.75 text-[8px] font-bold", statusTone[status] ?? "border-line bg-white/3 text-muted")}>{statusLabel[status] ?? status}</span>;
 }
 
 export function AsyncNotice({ pending, error, empty, emptyText = "暂无数据" }: { pending?: boolean; error?: string; empty?: boolean; emptyText?: string }) {

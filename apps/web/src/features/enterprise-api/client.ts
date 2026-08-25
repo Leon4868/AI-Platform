@@ -10,6 +10,7 @@ import type {
   KnowledgeSearchResult,
   SecurityLevel,
 } from "./types";
+import { normalizeProblemResponse } from "../../lib/problem-details";
 
 export class EnterpriseApiError extends Error {
   readonly code: string;
@@ -37,16 +38,11 @@ function inferredMimeType(file: File) {
 
 async function parseResponse<T>(response: Response): Promise<T> {
   if (response.ok) return response.json() as Promise<T>;
-  let body: Record<string, unknown> = {};
-  try {
-    body = await response.json() as Record<string, unknown>;
-  } catch {
-    // Preserve the HTTP status when a proxy returns an HTML/plain-text error.
-  }
+  const problem = await normalizeProblemResponse(response, `请求失败（${response.status}）`);
   throw new EnterpriseApiError(
-    typeof body.detail === "string" ? body.detail : typeof body.title === "string" ? body.title : `请求失败（${response.status}）`,
-    typeof body.error_code === "string" ? body.error_code : typeof body.code === "string" ? body.code : typeof body.type === "string" ? body.type.split(":").pop() || `http_${response.status}` : `http_${response.status}`,
-    response.status,
+    problem.message,
+    problem.code,
+    problem.status,
   );
 }
 

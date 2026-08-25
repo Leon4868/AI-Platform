@@ -50,3 +50,18 @@ def test_contract_declares_problem_json_and_project_scoped_upload() -> None:
 
     assert "projectId:" in upload_operation
     assert "application/problem+json:" in error_response
+
+
+def test_compose_runs_migrations_and_explicitly_selects_persistent_backends() -> None:
+    compose = _read("compose.yaml")
+    api_dockerfile = _read("apps/api/Dockerfile")
+
+    assert "  migrate:" in compose
+    assert 'command: ["alembic", "upgrade", "head"]' in compose
+    assert "APP_REPOSITORY_BACKEND: postgresql" in compose
+    assert "APP_STORAGE_BACKEND: s3" in compose
+    assert "  minio-init:" in compose
+    assert "mc mb --ignore-existing local/enterprise-ai-platform" in compose
+    assert "condition: service_completed_successfully" in compose
+    assert "COPY apps/api/alembic.ini ./alembic.ini" in api_dockerfile
+    assert "COPY apps/api/alembic ./alembic" in api_dockerfile

@@ -1,14 +1,15 @@
-import { Bot, Boxes, Database, FilePenLine, HelpCircle, Settings, Sparkles } from "lucide-react";
+import { Bot, Boxes, Database, FilePenLine, HelpCircle, Settings, ShieldCheck, Sparkles } from "lucide-react";
 
 import { IconButton } from "../ui/IconButton";
 
-export type AppSection = "agent" | "knowledge" | "documents" | "assets";
+export type AppSection = "agent" | "knowledge" | "documents" | "assets" | "governance";
 
 const primary: Array<{ id: AppSection; label: string; icon: typeof Bot }> = [
   { id: "agent", label: "Agent 编排", icon: Bot },
   { id: "knowledge", label: "知识库", icon: Database },
   { id: "documents", label: "文档生产", icon: FilePenLine },
   { id: "assets", label: "企业资产", icon: Boxes },
+  { id: "governance", label: "平台治理", icon: ShieldCheck },
 ];
 
 export function IconRail({ active, onNavigate }: { active: AppSection; onNavigate: (section: AppSection) => void }) {

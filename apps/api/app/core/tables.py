@@ -218,3 +218,79 @@ class AuditEventRecord(Base):
     )
     request_id: Mapped[str | None] = mapped_column(String(100))
     event_metadata: Mapped[dict[str, Any]] = mapped_column("metadata", JSONB, default=dict, nullable=False)
+
+
+class WorkflowRunRecord(TenantRecordMixin, Base):
+    __tablename__ = "workflow_runs"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "id", name="uq_workflow_runs_tenant_id"),
+        ForeignKeyConstraint(
+            ["tenant_id", "workflow_id"],
+            ["workflow_definitions.tenant_id", "workflow_definitions.id"],
+            name="fk_workflow_runs_tenant_workflow",
+            ondelete="RESTRICT",
+        ),
+        CheckConstraint("workflow_revision >= 1", name="ck_workflow_runs_revision_positive"),
+        CheckConstraint(
+            "status IN ('queued', 'running', 'waiting_human', 'succeeded', 'failed', "
+            "'cancelled')",
+            name="ck_workflow_runs_status",
+        ),
+        Index(
+            "ix_workflow_runs_tenant_workflow_created",
+            "tenant_id",
+            "workflow_id",
+            "created_at",
+        ),
+        Index("ix_workflow_runs_tenant_status_created", "tenant_id", "status", "created_at"),
+    )
+
+    workflow_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    workflow_revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    triggered_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    permission_snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    trace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False)
+    input: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    output: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    node_executions: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list, nullable=False)
+    pending_approval: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    error: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class WorkflowRunEventRecord(Base):
+    __tablename__ = "workflow_run_events"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["tenant_id", "run_id"],
+            ["workflow_runs.tenant_id", "workflow_runs.id"],
+            name="fk_workflow_run_events_tenant_run",
+            ondelete="RESTRICT",
+        ),
+        UniqueConstraint(
+            "tenant_id",
+            "run_id",
+            "sequence",
+            name="uq_workflow_run_events_tenant_run_sequence",
+        ),
+        CheckConstraint("sequence >= 1", name="ck_workflow_run_events_sequence_positive"),
+        Index(
+            "ix_workflow_run_events_tenant_run_sequence",
+            "tenant_id",
+            "run_id",
+            "sequence",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    run_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    type: Mapped[str] = mapped_column(String(64), nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    node_id: Mapped[str | None] = mapped_column(String(80))
+    data: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)

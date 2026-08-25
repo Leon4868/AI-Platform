@@ -18,7 +18,7 @@ from __future__ import annotations
 import asyncio
 import functools
 import json
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -34,6 +34,8 @@ from app.runtime import (
     TERMINAL_EVENT_TYPES,
     TERMINAL_RUN_STATUSES,
     ApprovalDecision,
+    ExecutionPlan,
+    ExecutionStep,
     InMemoryWorkflowRunRepository,
     InProcessGraphExecutor,
     NodeExecution,
@@ -43,9 +45,11 @@ from app.runtime import (
     RunEventType,
     RunStartRequest,
     RunStatus,
+    StepKind,
     WorkflowRun,
     WorkflowRunService,
 )
+from app.runtime.repository import StaleWorkflowRunError
 from app.workflows.schemas import (
     NodeType,
     WorkflowDefinition,
@@ -288,6 +292,39 @@ class RuntimeDriver:
         return await self.service.events(tenant_id, run_id, after_sequence=after_sequence)
 
 
+class PausedTerminalExecutor:
+    """Holds the owner process immediately before its terminal write."""
+
+    def __init__(self) -> None:
+        self.owner_is_ready = asyncio.Event()
+        self.release_owner = asyncio.Event()
+        self.owner_stream_closed = asyncio.Event()
+
+    async def run(self, plan: ExecutionPlan) -> AsyncIterator[ExecutionStep]:
+        del plan
+        try:
+            self.owner_is_ready.set()
+            await self.release_owner.wait()
+            yield ExecutionStep(kind=StepKind.RUN_SUCCEEDED, output={"source": "old-owner"})
+        finally:
+            self.owner_stream_closed.set()
+
+
+class ObservedWorkflowRunRepository(InMemoryWorkflowRunRepository):
+    """Counts optimistic-lock rejections without changing repository behavior."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.stale_rejections = 0
+
+    async def transition_with_events(self, *args: Any, **kwargs: Any):
+        try:
+            return await super().transition_with_events(*args, **kwargs)
+        except StaleWorkflowRunError:
+            self.stale_rejections += 1
+            raise
+
+
 def node_execution(run: WorkflowRun, node_id: str) -> NodeExecution:
     for execution in run.node_executions:
         if execution.node_id == node_id:
@@ -488,6 +525,55 @@ async def test_cancel_is_idempotent() -> None:
             event.sequence for event in events_after_first
         ], "重复取消不得追加事件或改变 sequence"
         assert_terminal_last(events_after_second, RunEventType.RUN_CANCELLED)
+
+
+@async_test
+async def test_remote_cancel_wins_over_old_owner_terminal_transition() -> None:
+    """Two service instances model two API processes sharing durable storage.
+
+    The owner pauses immediately before writing ``run.succeeded``. A second
+    process, which has no local execution task, cancels the run first. The
+    owner's old ``updated_at`` must then be rejected instead of resurrecting
+    the run or appending a second terminal event.
+    """
+    principal = make_principal()
+    workflows: InMemoryRepository[WorkflowDefinition] = InMemoryRepository()
+    runs = ObservedWorkflowRunRepository()
+    executor = PausedTerminalExecutor()
+    owner = WorkflowRunService(workflows, runs, executor, AuditService())
+    remote = WorkflowRunService(workflows, runs, InProcessGraphExecutor(), AuditService())
+    definition = linear_definition(principal.tenant_id)
+    await workflows.add(definition)
+
+    try:
+        started = await owner.start(principal, definition.id, RunStartRequest(input=RUN_INPUT))
+        await asyncio.wait_for(executor.owner_is_ready.wait(), timeout=1)
+
+        old_owner_snapshot = await owner.get(principal.tenant_id, started.id)
+        assert old_owner_snapshot.status is RunStatus.RUNNING
+
+        cancelled = await remote.cancel(principal, started.id, "另一实例接管并取消")
+        assert cancelled.status is RunStatus.CANCELLED
+        assert cancelled.updated_at != old_owner_snapshot.updated_at
+
+        executor.release_owner.set()
+        await asyncio.wait_for(executor.owner_stream_closed.wait(), timeout=1)
+
+        final = await owner.get(principal.tenant_id, started.id)
+        assert final.status is RunStatus.CANCELLED
+        assert final.updated_at == cancelled.updated_at
+        assert runs.stale_rejections == 1, "旧 owner 的终态写入必须命中乐观锁"
+
+        events = await owner.events(principal.tenant_id, started.id, limit=500)
+        terminal = [event.type for event in events if event.type in TERMINAL_EVENT_TYPES]
+        assert terminal == [RunEventType.RUN_CANCELLED]
+        assert RunEventType.RUN_SUCCEEDED not in {event.type for event in events}
+        assert RunEventType.RUN_FAILED not in {event.type for event in events}
+        assert_terminal_last(events, RunEventType.RUN_CANCELLED)
+    finally:
+        executor.release_owner.set()
+        await owner.aclose()
+        await remote.aclose()
 
 
 @async_test

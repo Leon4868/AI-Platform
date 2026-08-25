@@ -39,7 +39,7 @@ React 工作台 ── 共享 Contracts ── FastAPI
 
 ### 尚未生产化
 
-当前 Repository、知识索引、幂等记录、审计和任务跟随器仍在单进程内存中，进程重启或多实例部署会丢失状态；Alembic 初始迁移和租户隔离的 SQLAlchemy Repository 已就绪，但尚未接管运行时。检索尚未接入 pgvector、Embedding、Rerank、DOCX、OCR 或 PDF 解析；文档产物目前只有 Markdown。外部 Provider 已可按配置调用，但预算账本、生产重试策略、内容外发审批和持久 Trace 仍需完成。
+设置 `APP_REPOSITORY_BACKEND=postgresql` 后，Workflow 定义、Run/Event、知识库与词法索引、文档任务、资产元数据和审计事件由 PostgreSQL 接管；Compose 会先执行 Alembic、创建 MinIO 存储桶，再启动使用 S3 兼容存储的 API，并通过 readiness 探测数据库。SSE 可从持久事件游标恢复并跨 API 进程读取，但进程中断后的执行任务尚不会自动续跑；幂等记录和任务调度仍在单进程内存中。检索尚未启用 pgvector、Embedding、Rerank、DOCX、OCR 或 PDF 解析；文档产物目前只有 Markdown。外部 Provider 已可按配置调用，但预算持久账本、生产重试策略、内容外发审批和完整任务恢复仍需完成。
 
 | 目录 | 职责 |
 | --- | --- |
@@ -67,6 +67,14 @@ make dev-web
 - Web：`http://localhost:5173`
 - API：`http://localhost:8000`
 - OpenAPI：`http://localhost:8000/docs`
+
+需要验证持久化部署链路时，在本机 `.env` 配置 PostgreSQL 与 MinIO 的三个必填变量后运行：
+
+```bash
+docker compose up --build
+```
+
+Compose 会等待 PostgreSQL、执行 Alembic、幂等创建对象存储桶，再启动 API 与 Web；API 的 `/health/ready` 会同时探测数据库和对象存储。
 
 ## 验证
 

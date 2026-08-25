@@ -18,6 +18,7 @@ import { createConfiguredEnterpriseApi } from "./features/enterprise-api/config"
 import { KnowledgePage } from "./features/knowledge/KnowledgePage";
 import { DocumentPage } from "./features/documents/DocumentPage";
 import { AssetsPage } from "./features/assets/AssetsPage";
+import { GovernancePage } from "./features/governance/GovernancePage";
 
 const nodeLabels = Object.fromEntries(workflowNodes.map((node) => [node.id, node.data.label]));
 
@@ -58,6 +59,7 @@ export default function App() {
       {section === "knowledge" ? <KnowledgePage api={enterpriseApi} /> : null}
       {section === "documents" ? <DocumentPage api={enterpriseApi} /> : null}
       {section === "assets" ? <AssetsPage api={enterpriseApi} /> : null}
+      {section === "governance" ? <GovernancePage /> : null}
       {section === "agent" ? <>
       <TopBar
         focusMode={state.focusMode}
