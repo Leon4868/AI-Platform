@@ -9,7 +9,7 @@ import { Inspector } from "./components/workspace/Inspector";
 import { NodeLibrary } from "./components/workspace/NodeLibrary";
 import { TopBar } from "./components/workspace/TopBar";
 import { useWorkspaceState } from "./hooks/useWorkspaceState";
-import { workflowNodes } from "./lib/workflow";
+import { workflowNodes, type AgentNodeData } from "./lib/workflow";
 import { HttpWorkflowRunTransport } from "./features/workflow-run/api";
 import { MockWorkflowRunTransport } from "./features/workflow-run/mockTransport";
 import { useWorkflowRun } from "./features/workflow-run/useWorkflowRun";
@@ -32,13 +32,14 @@ export default function App() {
   const { state, dispatch, commandRef, nodeSearchRef } = useWorkspaceState();
   const [section, setSection] = useState<AppSection>("agent");
   const [command, setCommand] = useState("");
+  const [canvasNodeData, setCanvasNodeData] = useState<Record<string, AgentNodeData>>({});
   const [workflowDefinitionId, setWorkflowDefinitionId] = useState(import.meta.env.VITE_DEFAULT_WORKFLOW_ID ?? "");
   const enterpriseApi = useMemo(createConfiguredEnterpriseApi, []);
   const transport = useMemo(createConfiguredTransport, []);
   const run = useWorkflowRun({ transport, workflowDefinitionId, workflowDefinitionVersion: 1 });
-  const selectedNode = useMemo(
-    () => workflowNodes.find((node) => node.id === state.selectedNodeId),
-    [state.selectedNodeId],
+  const selectedNodeData = useMemo(
+    () => canvasNodeData[state.selectedNodeId] ?? workflowNodes.find((node) => node.id === state.selectedNodeId)?.data,
+    [canvasNodeData, state.selectedNodeId],
   );
   const runNodeStatuses = useMemo(
     () => Object.fromEntries(run.snapshot?.nodeRuns.map((node) => [node.nodeId, node.status]) ?? []),
@@ -73,7 +74,10 @@ export default function App() {
         focusMode={state.focusMode}
         selectedNodeId={state.selectedNodeId}
         runNodeStatuses={runNodeStatuses}
-        onSelectNode={(nodeId) => dispatch({ type: "select-node", nodeId })}
+        onSelectNode={(nodeId, data) => {
+          setCanvasNodeData((current) => ({ ...current, [nodeId]: data }));
+          dispatch({ type: "select-node", nodeId });
+        }}
       />
       <OverlayDrawer
         side="left"
@@ -91,7 +95,7 @@ export default function App() {
         eyebrow="INSPECTOR"
         onClose={() => dispatch({ type: "toggle-right" })}
       >
-        <Inspector data={selectedNode?.data} />
+        <Inspector data={selectedNodeData} />
       </OverlayDrawer>
       <TraceBar snapshot={run.snapshot} status={run.status} nodeLabels={nodeLabels} />
       <MarqueeCommandBar

@@ -1,7 +1,7 @@
 import { useMemo, useState, type RefObject } from "react";
 import { Search } from "lucide-react";
 
-import { paletteItems } from "../../lib/workflow";
+import { PALETTE_DRAG_MIME, paletteItems, serializePaletteItem } from "../../lib/workflow";
 import { Glass, PanelSection } from "../ui/Glass";
 import { TextAction } from "../ui/TextAction";
 import { MarqueeFrame } from "../ui/MarqueeFrame";
@@ -47,7 +47,17 @@ export function NodeLibrary({ searchInputRef }: NodeLibraryProps) {
       <PanelSection title="常用节点" action={<TextAction onClick={clearSearch}>全部</TextAction>}>
         <div className="grid grid-cols-2 gap-2">
           {visibleItems.map((item) => (
-            <button className={`grid grid-cols-[31px_1fr] grid-rows-2 gap-x-2 rounded-[10px] border border-line bg-[#559ac9]/3.5 p-2.5 text-left hover:border-[var(--tone-color)] hover:bg-[color-mix(in_srgb,var(--tone-color)_7%,transparent)] ${toneVariableClass[item.tone]}`} type="button" key={item.label}>
+            <button
+              className={`grid cursor-grab grid-cols-[31px_1fr] grid-rows-2 gap-x-2 rounded-[10px] border border-line bg-[#559ac9]/3.5 p-2.5 text-left hover:border-[var(--tone-color)] hover:bg-[color-mix(in_srgb,var(--tone-color)_7%,transparent)] active:cursor-grabbing ${toneVariableClass[item.tone]}`}
+              type="button"
+              draggable
+              key={item.label}
+              onDragStart={(event) => {
+                event.dataTransfer.effectAllowed = "copy";
+                event.dataTransfer.setData(PALETTE_DRAG_MIME, serializePaletteItem(item));
+                event.dataTransfer.setData("text/plain", item.label);
+              }}
+            >
               <span className="row-span-2 grid size-7.75 place-items-center rounded-lg bg-[color-mix(in_srgb,var(--tone-color)_10%,transparent)] text-[11px] font-extrabold text-[var(--tone-color)]">{item.label.slice(0, 1)}</span>
               <strong className="text-[11px]">{item.label}</strong>
               <small className="mt-0.5 text-[9px] text-faint">拖入画布</small>

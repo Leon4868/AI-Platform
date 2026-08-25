@@ -1,4 +1,4 @@
-import type { Edge, Node } from "@xyflow/react";
+import type { Edge, Node, XYPosition } from "@xyflow/react";
 
 export type NodeTone = "cyan" | "blue" | "violet" | "green" | "amber";
 
@@ -60,6 +60,40 @@ export const paletteItems = [
   { label: "人工审核", icon: "usercheck", tone: "amber" },
   { label: "资产归档", icon: "archive", tone: "green" },
 ] as const;
+
+export type PaletteItem = (typeof paletteItems)[number];
+
+export const PALETTE_DRAG_MIME = "application/x-ai-platform-node";
+
+export function serializePaletteItem(item: PaletteItem): string {
+  return JSON.stringify({ label: item.label });
+}
+
+export function parsePaletteItem(value: string): PaletteItem | null {
+  if (!value) return null;
+  try {
+    const payload = JSON.parse(value) as { label?: unknown };
+    return paletteItems.find((item) => item.label === payload.label) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export function createPaletteNode(item: PaletteItem, position: XYPosition, id: string): AgentFlowNode {
+  return {
+    id,
+    type: "agent",
+    position,
+    data: {
+      label: item.label,
+      subtitle: "待配置",
+      category: item.label,
+      tone: item.tone,
+      icon: item.icon,
+      status: "idle",
+    },
+  };
+}
 
 export function isWorkflowConnected(nodes: AgentFlowNode[], edges: Edge[]): boolean {
   if (nodes.length === 0) return true;
