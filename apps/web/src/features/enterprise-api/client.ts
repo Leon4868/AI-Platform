@@ -10,6 +10,14 @@ import type {
   KnowledgeSearchResult,
   SecurityLevel,
 } from "./types";
+import type {
+  AgentListPage,
+  AgentSummary,
+  AgentWorkflowDefinition,
+  AgentWorkflowDraft,
+  CreateAgentInput,
+  ManageableDepartment,
+} from "../agent-center/types";
 import { normalizeProblemResponse } from "../../lib/problem-details";
 
 export class EnterpriseApiError extends Error {
@@ -52,6 +60,60 @@ export class HttpEnterpriseApi implements EnterpriseApi {
 
   constructor(baseUrl = "/api") {
     this.baseUrl = baseUrl.replace(/\/$/, "");
+  }
+
+  async listAgents(query: { page: number; pageSize: number }, signal: AbortSignal): Promise<AgentListPage> {
+    const offset = (query.page - 1) * query.pageSize;
+    const result = await this.request<{ items: AgentSummary[]; total: number; limit: number; offset: number }>(
+      `/v1/agents?limit=${query.pageSize}&offset=${offset}`,
+      { signal },
+    );
+    return {
+      items: result.items,
+      total: result.total,
+      page: Math.floor(result.offset / result.limit) + 1,
+      pageSize: result.limit,
+    };
+  }
+
+  listManageableDepartments(signal: AbortSignal) {
+    return this.request<ManageableDepartment[]>("/v1/agents/manageable-departments", { signal });
+  }
+
+  createAgent(input: CreateAgentInput, signal: AbortSignal) {
+    return this.idempotentRequest<AgentSummary>("/v1/agents", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+      signal,
+    });
+  }
+
+  getAgentWorkflowDraft(agentId: string, signal: AbortSignal) {
+    return this.request<AgentWorkflowDraft>(
+      `/v1/agents/${encodeURIComponent(agentId)}/workflow-draft`,
+      { signal },
+    );
+  }
+
+  saveAgentWorkflowDraft(
+    agentId: string,
+    aggregateRevision: number,
+    definition: AgentWorkflowDefinition,
+    signal: AbortSignal,
+  ) {
+    return this.request<AgentWorkflowDraft>(
+      `/v1/agents/${encodeURIComponent(agentId)}/workflow-draft`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "If-Match": `"${aggregateRevision}"`,
+        },
+        body: JSON.stringify({ definition }),
+        signal,
+      },
+    );
   }
 
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {

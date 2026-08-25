@@ -14,6 +14,7 @@ type Props = {
   stepLabel?: string;
   errorMessage?: string;
   transportKind?: "http" | "mock";
+  runDisabled?: boolean;
   onValueChange?: (value: string) => void;
   onModeChange: (mode: "idle" | "focused") => void;
   onRun: () => void;
@@ -29,6 +30,7 @@ export function MarqueeCommandBar({
   stepLabel = "等待任务",
   errorMessage = "运行失败，请检查服务后重试",
   transportKind = "mock",
+  runDisabled = false,
   onValueChange,
   onModeChange,
   onRun,
@@ -74,7 +76,7 @@ export function MarqueeCommandBar({
             onFocus={() => onModeChange("focused")}
             onBlur={() => onModeChange("idle")}
             onKeyDown={(event) => {
-              if (event.key === "Enter") onRun();
+              if (event.key === "Enter" && !runDisabled) onRun();
             }}
           />
         )}
@@ -89,7 +91,7 @@ export function MarqueeCommandBar({
             <span>重试</span>
           </button>
         ) : (
-          <button className="liquid-button" type="button" onMouseDown={(event) => event.preventDefault()} onClick={onRun} aria-label="运行指令">
+          <button className="liquid-button disabled:cursor-not-allowed disabled:opacity-45" type="button" disabled={runDisabled} onMouseDown={(event) => event.preventDefault()} onClick={onRun} aria-label="运行指令" title={runDisabled ? "保存并发布 Agent 后方可运行" : undefined}>
             <span>运行</span>
             <CornerDownLeft size={14} />
           </button>

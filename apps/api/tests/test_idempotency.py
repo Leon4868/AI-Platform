@@ -1,4 +1,6 @@
 import asyncio
+from datetime import UTC, datetime, timedelta, timezone
+from decimal import Decimal
 from uuid import uuid4
 
 import pytest
@@ -91,3 +93,32 @@ def test_fingerprint_is_stable_and_does_not_embed_binary_content() -> None:
     assert left == right
     assert "enterprise secret" not in left
     assert len(left) == 64
+
+
+def test_fingerprint_normalizes_equal_decimal_values() -> None:
+    assert request_fingerprint({"amount": Decimal("40")}) == request_fingerprint(
+        {"amount": Decimal("40.0")}
+    )
+
+
+def test_fingerprint_normalizes_the_same_instant_to_utc() -> None:
+    instant = datetime(2026, 4, 1, 0, 0, tzinfo=UTC)
+    same_instant = instant.astimezone(timezone(timedelta(hours=8)))
+    assert request_fingerprint({"occurredAt": instant}) == request_fingerprint(
+        {"occurredAt": same_instant}
+    )
+
+
+def test_fingerprint_orders_sets_but_preserves_list_order() -> None:
+    assert request_fingerprint({"roles": {"editor", "admin"}}) == request_fingerprint(
+        {"roles": {"admin", "editor"}}
+    )
+    assert request_fingerprint({"steps": ["a", "b"]}) != request_fingerprint(
+        {"steps": ["b", "a"]}
+    )
+
+
+@pytest.mark.parametrize("value", [Decimal("NaN"), Decimal("Infinity"), Decimal("-Infinity")])
+def test_fingerprint_rejects_non_finite_decimals(value: Decimal) -> None:
+    with pytest.raises(ValueError, match="finite"):
+        request_fingerprint({"amount": value})

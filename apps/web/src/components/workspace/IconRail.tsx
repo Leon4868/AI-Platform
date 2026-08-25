@@ -1,11 +1,12 @@
-import { Bot, Boxes, Database, FilePenLine, HelpCircle, Settings, ShieldCheck, Sparkles } from "lucide-react";
+import { Bot, Boxes, Database, FilePenLine, HelpCircle, Settings, ShieldCheck, Sparkles, Workflow } from "lucide-react";
 
 import { IconButton } from "../ui/IconButton";
 
-export type AppSection = "agent" | "knowledge" | "documents" | "assets" | "governance";
+export type AppSection = "agent-center" | "agent" | "knowledge" | "documents" | "assets" | "governance";
 
 const primary: Array<{ id: AppSection; label: string; icon: typeof Bot }> = [
-  { id: "agent", label: "Agent 编排", icon: Bot },
+  { id: "agent-center", label: "Agent 中心", icon: Bot },
+  { id: "agent", label: "Agent 编排", icon: Workflow },
   { id: "knowledge", label: "知识库", icon: Database },
   { id: "documents", label: "文档生产", icon: FilePenLine },
   { id: "assets", label: "企业资产", icon: Boxes },

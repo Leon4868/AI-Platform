@@ -38,6 +38,15 @@ describe("MarqueeCommandBar", () => {
     expect(onRun).toHaveBeenCalledOnce();
   });
 
+  it("does not run an unpublished Agent draft", () => {
+    const onRun = vi.fn();
+    render(<MarqueeCommandBar mode="focused" runDisabled inputRef={createRef()} onModeChange={vi.fn()} onRun={onRun} onStop={vi.fn()} />);
+    fireEvent.keyDown(screen.getByLabelText("Agent 指令"), { key: "Enter" });
+    fireEvent.click(screen.getByRole("button", { name: "运行指令" }));
+    expect(onRun).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "运行指令" })).toBeDisabled();
+  });
+
   it("offers an explicit retry after a run error", () => {
     const onRetry = vi.fn();
     render(

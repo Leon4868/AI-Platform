@@ -10,6 +10,7 @@ import type {
   KnowledgeSearchResult,
   SecurityLevel,
 } from "./types";
+import type { AgentSummary, AgentWorkflowDefinition, AgentWorkflowDraft, CreateAgentInput } from "../agent-center/types";
 
 const now = () => new Date().toISOString();
 const id = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
@@ -28,6 +29,60 @@ export class MockEnterpriseApi implements EnterpriseApi {
   }];
   private tasks = new Map<string, { task: DocumentTask; reads: number }>();
   private assets = new Map<string, Asset>();
+  private agents: AgentSummary[] = [];
+  private agentWorkflows = new Map<string, AgentWorkflowDraft>();
+
+  async listAgents(query: { page: number; pageSize: number }) {
+    const start = (query.page - 1) * query.pageSize;
+    return {
+      items: structuredClone(this.agents.slice(start, start + query.pageSize)),
+      page: query.page,
+      pageSize: query.pageSize,
+      total: this.agents.length,
+    };
+  }
+
+  async listManageableDepartments() {
+    return [{ id: "dept-platform", name: "平台研发部" }];
+  }
+
+  async createAgent(input: CreateAgentInput) {
+    const timestamp = now();
+    const created: AgentSummary = {
+      id: id("mock-agent"),
+      ...input,
+      createdBy: "mock-user",
+      lifecycleStatus: "active",
+      aggregateRevision: 1,
+      hasUnpublishedChanges: true,
+      publishedVersion: null,
+      ownedWorkflowDraftId: id("mock-workflow"),
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+    this.agents = [created, ...this.agents];
+    this.agentWorkflows.set(created.id, {
+      agentId: created.id,
+      workflowDraftId: created.ownedWorkflowDraftId,
+      aggregateRevision: 1,
+      definition: { nodes: [], edges: [] },
+    });
+    return structuredClone(created);
+  }
+
+  async getAgentWorkflowDraft(agentId: string) {
+    const draft = this.agentWorkflows.get(agentId);
+    if (!draft) throw new Error("Mock Agent 画布不存在");
+    return structuredClone(draft);
+  }
+
+  async saveAgentWorkflowDraft(agentId: string, aggregateRevision: number, definition: AgentWorkflowDefinition) {
+    const current = this.agentWorkflows.get(agentId);
+    if (!current || current.aggregateRevision !== aggregateRevision) throw new Error("Mock Agent 画布版本冲突");
+    const saved = { ...current, aggregateRevision: aggregateRevision + 1, definition: structuredClone(definition) };
+    this.agentWorkflows.set(agentId, saved);
+    return structuredClone(saved);
+  }
 
   async listKnowledgeBases() { return structuredClone(this.knowledgeBases); }
 

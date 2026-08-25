@@ -7,6 +7,38 @@ const problem = (status: number, body: unknown) => ({ ok: false, status, json: a
 afterEach(() => vi.unstubAllGlobals());
 
 describe("HttpEnterpriseApi", () => {
+  it("adapts Agent Center pagination and uses the Agent create contract", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(ok({ items: [], total: 0, limit: 12, offset: 12 }))
+      .mockResolvedValueOnce(ok([{ id: "dept-platform", name: "平台部" }]))
+      .mockResolvedValueOnce(ok({ id: "agent-1" }))
+      .mockResolvedValueOnce(ok({ agentId: "agent/1", aggregateRevision: 1, definition: { nodes: [], edges: [] } }))
+      .mockResolvedValueOnce(ok({ agentId: "agent/1", aggregateRevision: 2, definition: { nodes: [], edges: [] } }));
+    vi.stubGlobal("fetch", fetchMock);
+    const api = new HttpEnterpriseApi();
+    const signal = new AbortController().signal;
+
+    await expect(api.listAgents({ page: 2, pageSize: 12 }, signal)).resolves.toEqual({
+      items: [], total: 0, page: 2, pageSize: 12,
+    });
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/v1/agents?limit=12&offset=12");
+
+    await api.listManageableDepartments(signal);
+    expect(fetchMock.mock.calls[1][0]).toBe("/api/v1/agents/manageable-departments");
+
+    await api.createAgent({ name: "助手", description: "", ownerDepartmentId: "dept-platform" }, signal);
+    expect(fetchMock.mock.calls[2][0]).toBe("/api/v1/agents");
+    expect(JSON.parse(fetchMock.mock.calls[2][1].body)).toEqual({
+      name: "助手", description: "", ownerDepartmentId: "dept-platform",
+    });
+    expect(fetchMock.mock.calls[2][1].headers["Idempotency-Key"]).toBeTruthy();
+
+    await api.getAgentWorkflowDraft("agent/1", signal);
+    expect(fetchMock.mock.calls[3][0]).toBe("/api/v1/agents/agent%2F1/workflow-draft");
+    await api.saveAgentWorkflowDraft("agent/1", 1, { nodes: [], edges: [] }, signal);
+    expect(fetchMock.mock.calls[4][1].headers["If-Match"]).toBe('"1"');
+  });
+
   it("uses exact knowledge paths and camelCase JSON", async () => {
     const fetchMock = vi.fn().mockResolvedValue(ok({ id: "kb", name: "制度库" }));
     vi.stubGlobal("fetch", fetchMock);

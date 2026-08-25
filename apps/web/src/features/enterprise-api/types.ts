@@ -83,7 +83,7 @@ export type Asset = {
   updatedAt: string;
 };
 
-export interface EnterpriseApi {
+export interface EnterpriseApi extends AgentCenterApi {
   readonly kind: "http" | "mock";
   listKnowledgeBases(signal?: AbortSignal): Promise<KnowledgeBase[]>;
   createKnowledgeBase(input: CreateKnowledgeBaseInput, signal?: AbortSignal): Promise<KnowledgeBase>;
@@ -93,3 +93,4 @@ export interface EnterpriseApi {
   getDocumentTask(taskId: string, signal?: AbortSignal): Promise<DocumentTask>;
   getAsset(assetId: string, signal?: AbortSignal): Promise<Asset>;
 }
+import type { AgentCenterApi } from "../agent-center/types";

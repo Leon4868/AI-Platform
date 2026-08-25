@@ -6,6 +6,8 @@ import json
 from collections.abc import Awaitable, Callable, Mapping
 from copy import deepcopy
 from dataclasses import dataclass
+from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Any, Protocol, TypeVar
 from uuid import UUID
 
@@ -93,13 +95,31 @@ def request_fingerprint(payload: Any) -> str:
 
 def _json_value(value: Any) -> Any:
     if hasattr(value, "model_dump"):
-        return _json_value(value.model_dump(mode="json", by_alias=True))
+        # Preserve native Decimal/datetime values until they can be reduced to
+        # one semantic representation. JSON-mode dumps keep spelling and UTC
+        # offsets, which makes equal retries hash differently.
+        return _json_value(value.model_dump(mode="python", by_alias=True))
     if isinstance(value, Mapping):
         return {str(key): _json_value(item) for key, item in value.items()}
-    if isinstance(value, (list, tuple, set, frozenset)):
+    if isinstance(value, (list, tuple)):
         return [_json_value(item) for item in value]
+    if isinstance(value, (set, frozenset)):
+        normalized = [_json_value(item) for item in value]
+        return sorted(normalized, key=_canonical_json)
+    if isinstance(value, datetime):
+        normalized = value.astimezone(UTC) if value.tzinfo is not None else value
+        return {"datetime": normalized.isoformat()}
+    if isinstance(value, Decimal):
+        if not value.is_finite():
+            raise ValueError("idempotency payload decimals must be finite")
+        normalized = Decimal(0) if value == 0 else value.normalize()
+        return {"decimal": format(normalized, "f")}
     if isinstance(value, UUID):
         return str(value)
     if isinstance(value, bytes):
         return {"sha256": hashlib.sha256(value).hexdigest(), "size": len(value)}
     return value
+
+
+def _canonical_json(value: Any) -> str:
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))

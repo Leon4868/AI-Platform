@@ -16,11 +16,10 @@ import {
   createPaletteNode,
   PALETTE_DRAG_MIME,
   parsePaletteItem,
-  workflowEdges,
-  workflowNodes,
   type AgentFlowNode,
   type AgentNodeData,
 } from "../../lib/workflow";
+import type { AgentWorkflowDefinition } from "../../features/agent-center";
 import { cn } from "../../lib/cn";
 import type { NodeRunStatus } from "../../features/workflow-run/types";
 import { AgentNode } from "./AgentNode";
@@ -29,20 +28,57 @@ type Props = {
   focusMode: boolean;
   selectedNodeId: string;
   runNodeStatuses?: Record<string, NodeRunStatus>;
+  workflowKey: string;
+  definition: AgentWorkflowDefinition;
+  definitionRevision: number;
+  onDefinitionChange: (definition: AgentWorkflowDefinition) => void;
   onSelectNode: (nodeId: string, data: AgentNodeData) => void;
 };
 
-export function AgentCanvas({ focusMode, selectedNodeId, runNodeStatuses, onSelectNode }: Props) {
+export function AgentCanvas({ focusMode, selectedNodeId, runNodeStatuses, workflowKey, definition, definitionRevision, onDefinitionChange, onSelectNode }: Props) {
   const initialNodes = useMemo(
-    () => workflowNodes.map((node) => ({ ...node, selected: node.id === selectedNodeId })),
+    () => definition.nodes.map((node) => ({ ...node, selected: node.id === selectedNodeId })),
     // Initial state is intentionally seeded once; React Flow owns subsequent selection.
     [],
   );
   const [nodes, setNodes, onNodesChange] = useNodesState<AgentFlowNode>(initialNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(workflowEdges);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(definition.edges);
   const nodeTypes = useMemo(() => ({ agent: AgentNode }), []);
   const flowInstanceRef = useRef<ReactFlowInstance<AgentFlowNode> | null>(null);
   const droppedNodeSequence = useRef(0);
+  const resetRef = useRef(`${workflowKey}:${definitionRevision}`);
+
+  useEffect(() => {
+    const identity = `${workflowKey}:${definitionRevision}`;
+    if (resetRef.current === identity) return;
+    resetRef.current = identity;
+    setNodes(definition.nodes.map((node) => ({ ...node, selected: node.id === selectedNodeId })));
+    setEdges(definition.edges);
+  }, [definition.edges, definition.nodes, definitionRevision, selectedNodeId, setEdges, setNodes, workflowKey]);
+
+  useEffect(() => {
+    onDefinitionChange({
+      nodes: nodes.map((node) => ({
+        id: node.id,
+        type: "agent",
+        position: node.position,
+        data: node.data,
+      })),
+      edges: edges.map((edge) => ({
+        id: edge.id,
+        source: edge.source,
+        target: edge.target,
+        sourceHandle: edge.sourceHandle,
+        targetHandle: edge.targetHandle,
+        type: edge.type,
+        label: edge.label,
+        animated: edge.animated,
+        data: edge.data,
+        style: edge.style,
+        labelStyle: edge.labelStyle,
+      })),
+    });
+  }, [edges, nodes, onDefinitionChange]);
 
   useEffect(() => {
     if (!runNodeStatuses) return;

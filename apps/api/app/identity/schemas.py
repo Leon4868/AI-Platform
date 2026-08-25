@@ -7,6 +7,12 @@ from app.core.schemas import ApiModel
 
 
 class Permission(StrEnum):
+    AGENT_READ = "agent.read"
+    AGENT_WRITE = "agent.write"
+    TOOL_READ = "tool.read"
+    TOOL_WRITE = "tool.write"
+    MCP_READ = "mcp.read"
+    MCP_WRITE = "mcp.write"
     KNOWLEDGE_READ = "knowledge.read"
     KNOWLEDGE_WRITE = "knowledge.write"
     DOCUMENT_READ = "document.read"

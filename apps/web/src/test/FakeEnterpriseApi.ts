@@ -1,4 +1,5 @@
 import type { Asset, CreateDocumentTaskInput, CreateKnowledgeBaseInput, DataScope, DocumentTask, EnterpriseApi, KnowledgeBase, SecurityLevel } from "../features/enterprise-api/types";
+import type { AgentWorkflowDefinition, CreateAgentInput } from "../features/agent-center/types";
 
 export class FakeEnterpriseApi implements EnterpriseApi {
   readonly kind = "http" as const;
@@ -9,6 +10,31 @@ export class FakeEnterpriseApi implements EnterpriseApi {
   createdTask?: CreateDocumentTaskInput;
   taskReads = 0;
   assetReads = 0;
+
+  async listAgents(query: { page: number; pageSize: number }) {
+    return { items: [], page: query.page, pageSize: query.pageSize, total: 0 };
+  }
+  async listManageableDepartments() { return [{ id: "dept-1", name: "产品部" }]; }
+  async createAgent(input: CreateAgentInput) {
+    return {
+      id: "agent-1",
+      ...input,
+      createdBy: "user-1",
+      lifecycleStatus: "active" as const,
+      aggregateRevision: 1,
+      hasUnpublishedChanges: true,
+      publishedVersion: null,
+      ownedWorkflowDraftId: "workflow-draft-1",
+      createdAt: "2026-08-25T00:00:00Z",
+      updatedAt: "2026-08-25T00:00:00Z",
+    };
+  }
+  async getAgentWorkflowDraft(agentId: string) {
+    return { agentId, workflowDraftId: "workflow-draft-1", aggregateRevision: 1, definition: { nodes: [], edges: [] } };
+  }
+  async saveAgentWorkflowDraft(agentId: string, aggregateRevision: number, definition: AgentWorkflowDefinition) {
+    return { agentId, workflowDraftId: "workflow-draft-1", aggregateRevision: aggregateRevision + 1, definition };
+  }
 
   async listKnowledgeBases() { return structuredClone(this.knowledgeBases); }
   async createKnowledgeBase(input: CreateKnowledgeBaseInput) {

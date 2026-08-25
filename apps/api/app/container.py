@@ -1,5 +1,8 @@
 from dataclasses import dataclass
 
+from app.agents.repository import InMemoryAgentRepository
+from app.agents.service import AgentService, InMemoryAgentAuditSink
+
 from app.assets.schemas import Asset
 from app.audit.service import AuditService
 from app.core.config import Settings
@@ -57,6 +60,8 @@ class Container:
     model_gateway: ModelGateway
     audit_service: AuditService
     idempotency_store: IdempotencyStore
+    agent_repository: InMemoryAgentRepository
+    agent_service: AgentService
     workflow_repository: Repository[WorkflowDefinition]
     workflow_service: WorkflowService
     workflow_run_repository: WorkflowRunRepository
@@ -139,6 +144,12 @@ def build_container(settings: Settings, *, identity_provider: IdentityProvider |
         object_storage,
         composer,
     )
+    agent_repository = InMemoryAgentRepository()
+    agent_service = AgentService(
+        agent_repository,
+        _UnconfiguredAgentResourceResolver(),
+        InMemoryAgentAuditSink(),
+    )
     return Container(
         repository_backend=settings.repository_backend,
         database=database,
@@ -147,6 +158,8 @@ def build_container(settings: Settings, *, identity_provider: IdentityProvider |
         model_gateway=model_gateway,
         audit_service=audit_service,
         idempotency_store=InMemoryIdempotencyStore(),
+        agent_repository=agent_repository,
+        agent_service=agent_service,
         workflow_repository=workflow_repository,
         workflow_service=WorkflowService(workflow_repository, WorkflowGraphValidator(), audit_service),
         workflow_run_repository=workflow_run_repository,
@@ -164,6 +177,14 @@ def build_container(settings: Settings, *, identity_provider: IdentityProvider |
         asset_repository=asset_repository,
         asset_service=ReadService(asset_repository, "asset"),
     )
+
+
+class _UnconfiguredAgentResourceResolver:
+    """Fail-closed until Prompt/Model/Knowledge/Tool registries are composed."""
+
+    async def resolve(self, principal, reference):
+        del principal, reference
+        return None
 
 
 def _build_model_gateway(settings: Settings) -> ModelGateway:

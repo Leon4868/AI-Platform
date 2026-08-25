@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.assets.router import router as assets_router
+from app.agents.router import router as agents_router
 from app.audit.router import router as audit_router
 from app.container import build_container
 from app.core.config import Settings, get_settings
@@ -35,18 +36,20 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
     app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=_lifespan)
+    app.state.settings = settings
     app.state.container = build_container(settings)
     if origins := settings.cors_origins():
         app.add_middleware(
             CORSMiddleware,
             allow_origins=origins,
             allow_credentials=True,
-            allow_methods=["GET", "POST", "OPTIONS"],
+            allow_methods=["GET", "POST", "PUT", "PATCH", "OPTIONS"],
             allow_headers=[
                 "Accept",
                 "Authorization",
                 "Content-Type",
                 "Idempotency-Key",
+                "If-Match",
                 "Last-Event-ID",
                 "X-Request-Id",
             ],
@@ -68,6 +71,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "status": exc.status_code,
             "detail": exc.detail,
             "instance": str(request.url.path),
+            "code": exc.error_code,
+            "requestId": getattr(request.state, "request_id", None),
+            # One-version compatibility alias for existing clients.
             "request_id": getattr(request.state, "request_id", None),
         }
         if exc.errors:
@@ -82,7 +88,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "title": "Request validation failed",
                 "status": 422,
                 "detail": "One or more request fields are invalid",
+                "code": "request_validation",
                 "instance": str(request.url.path),
+                "requestId": getattr(request.state, "request_id", None),
                 "request_id": getattr(request.state, "request_id", None),
                 "errors": jsonable_encoder(exc.errors()),
             },
@@ -117,6 +125,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         }
 
     app.include_router(workflows_router, prefix=settings.api_prefix)
+    app.include_router(agents_router, prefix=settings.api_prefix)
     app.include_router(workflow_runs_router, prefix=settings.api_prefix)
     app.include_router(knowledge_router, prefix=settings.api_prefix)
     app.include_router(documents_router, prefix=settings.api_prefix)
